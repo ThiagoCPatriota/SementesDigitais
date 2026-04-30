@@ -1,10 +1,11 @@
-import { renderAdmin, renderCadastro, renderHome, renderProva, renderResultado } from './pages.js';
+import { renderAdmin, renderAtividades, renderCadastro, renderHome, renderProva, renderResultado } from './pages.js';
 
 const app = document.querySelector('#app');
 
 const routes = {
   home: renderHome,
   cadastro: renderCadastro,
+  atividades: renderAtividades,
   admin: renderAdmin,
   prova: renderProva,
   resultado: renderResultado
