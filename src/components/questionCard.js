@@ -6,8 +6,10 @@ export function renderQuestionCard(question, selectedLetter) {
         <span class="question-card__meta">${question.area} • ${question.year}</span>
       </div>
 
-      ${question.context ? `<p class="question-card__context">${question.context}</p>` : ''}
-      <h2 class="question-card__statement">${question.statement}</h2>
+      <div class="question-card__content">
+        ${question.context ? `<p class="question-card__prompt">${question.context}</p>` : ''}
+        <p class="question-card__prompt question-card__prompt--statement">${question.statement}</p>
+      </div>
 
       <div class="alternatives" role="radiogroup" aria-label="Alternativas da questão ${question.number}">
         ${question.alternatives

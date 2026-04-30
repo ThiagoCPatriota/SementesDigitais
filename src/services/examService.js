@@ -1,12 +1,10 @@
 import { APP_CONFIG } from '../config.js';
 import { mockQuestions } from '../data/mockQuestions.js';
-import { essayThemes } from '../data/essayThemes.js';
 import { clearAttemptData, load, save } from './storage.js';
 
 export function getExamConfig() {
   return load('examConfig', {
     ...APP_CONFIG.defaultExam,
-    essayThemeId: essayThemes[0].id,
     sourceMode: 'mock'
   });
 }
@@ -17,7 +15,6 @@ export function saveExamConfig(config) {
     classCode: config.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount,
-    essayThemeId: config.essayThemeId || essayThemes[0].id,
     sourceMode: config.sourceMode || 'mock'
   };
 
@@ -26,28 +23,36 @@ export function saveExamConfig(config) {
   return normalized;
 }
 
-export function getSelectedTheme() {
-  const config = getExamConfig();
-  return essayThemes.find((theme) => theme.id === config.essayThemeId) ?? essayThemes[0];
-}
-
 export function getExamQuestions() {
   const config = getExamConfig();
-  return mockQuestions.slice(0, config.questionCount).map((question, index) => ({
+  const attempt = getCurrentAttempt();
+  const questionCount = Number(attempt?.questionCount || config.questionCount || APP_CONFIG.defaultExam.questionCount);
+
+  return mockQuestions.slice(0, questionCount).map((question, index) => ({
     ...question,
     number: index + 1
   }));
 }
 
-export function startAttempt(student) {
-  const config = getExamConfig();
+export function startAttempt(student, activityConfig = {}) {
+  const defaultConfig = getExamConfig();
+  const config = {
+    ...defaultConfig,
+    ...activityConfig
+  };
+
   const now = new Date();
-  const deadline = new Date(now.getTime() + config.durationMinutes * 60 * 1000);
+  const durationMinutes = Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes;
+  const questionCount = Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount;
+  const deadline = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
   const attempt = {
     id: `attempt-${Date.now()}`,
     student,
     examTitle: config.title,
+    activityType: config.activityType || 'turma',
+    durationMinutes,
+    questionCount,
     startedAt: now.toISOString(),
     deadlineAt: deadline.toISOString(),
     submittedAt: null,
@@ -56,7 +61,6 @@ export function startAttempt(student) {
 
   save('attempt', attempt);
   save('answers', {});
-  save('essay', '');
   save('result', null);
   return attempt;
 }
@@ -79,14 +83,6 @@ export function saveAnswer(questionId, letter) {
   return answers;
 }
 
-export function saveEssay(content) {
-  save('essay', content);
-}
-
-export function getEssay() {
-  return load('essay', '');
-}
-
 export function finalizeAttempt(reason = 'manual') {
   const attempt = getCurrentAttempt();
   if (!attempt) return null;
@@ -98,15 +94,15 @@ export function finalizeAttempt(reason = 'manual') {
     return total + (selected === question.correctAlternative ? 1 : 0);
   }, 0);
 
+  const answeredCount = Object.keys(answers).length;
   const result = {
     attemptId: attempt.id,
     reason,
     totalQuestions: questions.length,
-    answeredCount: Object.keys(answers).length,
+    answeredCount,
     correctCount,
-    blankCount: questions.length - Object.keys(answers).length,
+    blankCount: questions.length - answeredCount,
     scorePercent: questions.length ? Math.round((correctCount / questions.length) * 100) : 0,
-    essaySaved: Boolean(getEssay().trim()),
     finalizedAt: new Date().toISOString()
   };
 

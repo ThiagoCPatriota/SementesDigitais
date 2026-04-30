@@ -1,6 +1,12 @@
 import { APP_CONFIG } from '../config.js';
+import { icon } from './icons.js';
+import { load } from '../services/storage.js';
 
 export function shell(content, activeRoute = 'home') {
+  const session = load('authSession', null);
+  const isSignedIn = Boolean(session);
+  const isAdmin = session?.role === 'admin';
+
   return `
     <header class="topbar">
       <a class="brand" href="#home" aria-label="Voltar para início">
@@ -13,9 +19,10 @@ export function shell(content, activeRoute = 'home') {
 
       <nav class="nav" aria-label="Navegação principal">
         ${navItem('home', 'Início', activeRoute)}
-        ${navItem('cadastro', 'Cadastro', activeRoute)}
-        ${navItem('admin', 'Admin', activeRoute)}
-        ${navItem('prova', 'Prova', activeRoute)}
+        ${navItem('cadastro', isSignedIn ? 'Conta' : 'Acesso', activeRoute)}
+        ${isSignedIn ? navItem('atividades', 'Atividades', activeRoute) : ''}
+        ${isSignedIn ? navItem('prova', 'Prova', activeRoute) : ''}
+        ${isAdmin ? navItem('admin', 'Admin', activeRoute) : ''}
       </nav>
     </header>
 
@@ -33,7 +40,7 @@ function navItem(route, label, activeRoute) {
 export function emptyState({ title, description, actionLabel, actionHref }) {
   return `
     <section class="empty-state">
-      <div class="empty-state__icon">🌱</div>
+      ${icon('seed', 'empty-state__icon')}
       <h2>${title}</h2>
       <p>${description}</p>
       ${actionLabel ? `<a class="button button--primary" href="${actionHref}">${actionLabel}</a>` : ''}
