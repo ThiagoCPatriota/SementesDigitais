@@ -6,7 +6,7 @@ import { renderTimer } from './components/timer.js';
 import { emptyState, shell } from './components/layout.js';
 import { showToast } from './components/toast.js';
 import { formatSeconds, secondsUntil } from './utils/timer.js';
-import { isValidCpfShape, isValidEmail, isValidPhoneShape, onlyDigits } from './utils/validators.js';
+import { isValidEmail, isValidPhoneShape } from './utils/validators.js';
 import {
   finalizeAttempt,
   getAnswers,
@@ -35,26 +35,25 @@ export function renderHome() {
         <span class="eyebrow">${APP_CONFIG.organization} apresenta</span>
         <h1>Simulados ENEM para o projeto <span>Sementes Digitais</span></h1>
         <p>
-          Um MVP simples, moderno e com cara escolar para cadastro de alunos,
-          resolução de questões, redação e prova com cronômetro.
+          Uma plataforma educacional para estudantes treinarem questões do ENEM,
+          praticarem redação e acompanharem seu desempenho em simulados organizados.
         </p>
         <div class="hero__actions">
-          <a class="button button--primary" href="#cadastro">Começar como aluno</a>
-          <a class="button button--ghost" href="#admin">Configurar simulado</a>
+          <a class="button button--primary" href="#cadastro">Começar</a>
         </div>
       </div>
 
       <aside class="hero-card">
         <div class="hero-card__top">
           <span class="hero-card__icon">📚</span>
-          <span class="badge">MVP 01</span>
+          <span class="badge">Simulado ativo</span>
         </div>
         <h2>${config.title}</h2>
         <ul class="feature-list">
           <li><strong>${config.questionCount}</strong> questões objetivas</li>
           <li><strong>${config.durationMinutes}</strong> minutos de prova</li>
           <li>Redação com tema selecionado</li>
-          <li>Salvamento local automático</li>
+          <li>Salvamento automático das respostas</li>
         </ul>
       </aside>
     </section>
@@ -63,7 +62,7 @@ export function renderHome() {
       <article class="info-card">
         <span class="info-card__icon">🧑‍🎓</span>
         <h3>Cadastro rápido</h3>
-        <p>Identificação do aluno por nome, e-mail, telefone, CPF e código da turma.</p>
+        <p>Identificação do aluno por nome, e-mail, telefone, escola/turma e código da atividade.</p>
       </article>
       <article class="info-card">
         <span class="info-card__icon">⏱️</span>
@@ -79,7 +78,7 @@ export function renderHome() {
 
     <section class="notice-card">
       <strong>${APP_CONFIG.slogan}</strong>
-      <p>Essa primeira versão é focada em layout, experiência e organização modular. O backend entra na próxima etapa para segurança do gabarito e dados reais.</p>
+      <p>O ambiente reúne cadastro, prova cronometrada, questões objetivas e redação em uma experiência organizada para estudantes e professores.</p>
     </section>
   `;
 
@@ -95,7 +94,7 @@ export function renderCadastro() {
     <section class="section-header">
       <span class="eyebrow">Área do aluno</span>
       <h1>Cadastro rápido</h1>
-      <p>Preencha seus dados para iniciar o simulado. Para o MVP, os dados ficam salvos apenas no navegador.</p>
+      <p>Preencha seus dados para acessar o simulado disponível para sua turma.</p>
     </section>
 
     <section class="form-layout">
@@ -115,11 +114,6 @@ export function renderCadastro() {
           <input name="phone" value="${student.phone ?? ''}" placeholder="(81) 99999-9999" required />
         </label>
 
-        <label>
-          CPF
-          <input name="cpf" value="${student.cpf ?? ''}" placeholder="000.000.000-00" required />
-          <small>No produto final, recomenda-se tratar CPF com validação e proteção no backend.</small>
-        </label>
 
         <label>
           Escola ou turma
@@ -172,10 +166,6 @@ function setupCadastroEvents(config) {
       return;
     }
 
-    if (!isValidCpfShape(student.cpf)) {
-      showToast('Informe um CPF com 11 dígitos.', 'error');
-      return;
-    }
 
     if (student.classCode.trim().toUpperCase() !== config.classCode.toUpperCase()) {
       showToast('Código da atividade incorreto.', 'error');
@@ -186,7 +176,6 @@ function setupCadastroEvents(config) {
       name: student.name.trim(),
       email: student.email.trim(),
       phone: student.phone.trim(),
-      cpf: onlyDigits(student.cpf),
       classGroup: student.classGroup.trim(),
       classCode: student.classCode.trim().toUpperCase(),
       terms: Boolean(student.terms),
@@ -208,7 +197,7 @@ export function renderAdmin() {
     <section class="section-header">
       <span class="eyebrow">Painel administrativo</span>
       <h1>Configurar simulado</h1>
-      <p>Esta tela simula o painel do professor/admin para definir tempo, quantidade de questões e tema de redação.</p>
+      <p>Painel do professor para definir tempo, quantidade de questões, código de acesso e tema de redação.</p>
     </section>
 
     <section class="form-layout">
@@ -247,10 +236,10 @@ export function renderAdmin() {
         <label>
           Fonte de questões
           <select name="sourceMode">
-            <option value="mock" selected>Dados simulados do MVP</option>
-            <option value="enem-dev" disabled>API enem.dev — preparada para backend</option>
+            <option value="mock" selected>Banco interno de questões</option>
+            <option value="enem-dev" disabled>API enem.dev — integração futura</option>
           </select>
-          <small>A integração real deve passar pelo backend para não expor gabarito.</small>
+          <small>Na versão com banco de dados, o gabarito será protegido no servidor.</small>
         </label>
 
         <button class="button button--primary button--full" type="submit">Salvar configuração</button>
@@ -492,11 +481,11 @@ export function renderResultado() {
     </section>
 
     <section class="notice-card">
-      <strong>Observação do MVP</strong>
-      <p>Esta correção é demonstrativa com dados simulados. No projeto real, a correção das objetivas deve acontecer no backend, sem expor o gabarito para o aluno.</p>
+      <strong>Resultado registrado</strong>
+      <p>Sua participação foi registrada. Em uma próxima etapa, o professor poderá acompanhar os resultados da turma em um painel administrativo.</p>
       <div class="hero__actions">
-        <a class="button button--primary" href="#admin">Configurar novo simulado</a>
-        <a class="button button--ghost" href="#home">Voltar ao início</a>
+        <a class="button button--primary" href="#home">Voltar ao início</a>
+        <a class="button button--ghost" href="#cadastro">Nova participação</a>
       </div>
     </section>
   `;
