@@ -36,11 +36,7 @@ export function getExamQuestions() {
 
 export function startAttempt(student, activityConfig = {}) {
   const defaultConfig = getExamConfig();
-  const config = {
-    ...defaultConfig,
-    ...activityConfig
-  };
-
+  const config = { ...defaultConfig, ...activityConfig };
   const now = new Date();
   const durationMinutes = Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes;
   const questionCount = Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount;
@@ -89,12 +85,12 @@ export function finalizeAttempt(reason = 'manual') {
 
   const questions = getExamQuestions();
   const answers = getAnswers();
+  const answeredCount = Object.keys(answers).length;
   const correctCount = questions.reduce((total, question) => {
     const selected = answers[question.id]?.selectedAlternative;
     return total + (selected === question.correctAlternative ? 1 : 0);
   }, 0);
 
-  const answeredCount = Object.keys(answers).length;
   const result = {
     attemptId: attempt.id,
     reason,

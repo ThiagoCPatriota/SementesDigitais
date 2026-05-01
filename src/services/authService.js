@@ -1,19 +1,17 @@
 import { APP_CONFIG } from '../config.js';
-import { load, save } from './storage.js';
+import { load, remove, save } from './storage.js';
 
 let supabaseClientPromise = null;
 
 function hasSupabaseConfig() {
-  const url = APP_CONFIG.supabase?.url?.trim();
-  const anonKey = APP_CONFIG.supabase?.anonKey?.trim();
-  return Boolean(url && anonKey);
+  return Boolean(APP_CONFIG.supabase.url?.trim() && APP_CONFIG.supabase.anonKey?.trim());
 }
 
 async function getSupabaseClient() {
   if (!hasSupabaseConfig()) return null;
 
   if (!supabaseClientPromise) {
-    supabaseClientPromise = import('https://esm.sh/@supabase/supabase-js@2').then(({ createClient }) =>
+    supabaseClientPromise = import('@supabase/supabase-js').then(({ createClient }) =>
       createClient(APP_CONFIG.supabase.url, APP_CONFIG.supabase.anonKey)
     );
   }
@@ -31,6 +29,12 @@ function normalizeRole(role, email) {
   return 'student';
 }
 
+function isSessionExpired(session) {
+  if (!session?.signedInAt) return true;
+  const ttlMs = Number(APP_CONFIG.sessionDurationHours || 10) * 60 * 60 * 1000;
+  return Date.now() - new Date(session.signedInAt).getTime() > ttlMs;
+}
+
 export function saveAuthSession({ student, role = 'student', provider = 'local' }) {
   const session = {
     role: normalizeRole(role, student.email),
@@ -46,7 +50,20 @@ export function saveAuthSession({ student, role = 'student', provider = 'local' 
 }
 
 export function getStoredAuthSession() {
-  return load('authSession', null);
+  const session = load('authSession', null);
+  if (!session) return null;
+
+  if (isSessionExpired(session)) {
+    clearAuthSession();
+    return null;
+  }
+
+  return session;
+}
+
+export function clearAuthSession() {
+  remove('authSession');
+  remove('student');
 }
 
 export function isCurrentAdmin() {
@@ -109,11 +126,7 @@ export async function loginStudentAccount({ email, password }) {
   const supabase = await getSupabaseClient();
 
   if (supabase) {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw new Error(error.message);
 
     const metadata = data?.user?.user_metadata ?? {};
@@ -157,4 +170,12 @@ export async function loginStudentAccount({ email, password }) {
   }
 
   throw new Error('Conta não encontrada neste navegador. Faça o cadastro primeiro.');
+}
+
+export async function signOut() {
+  const supabase = await getSupabaseClient();
+  if (supabase) {
+    await supabase.auth.signOut();
+  }
+  clearAuthSession();
 }
