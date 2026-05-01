@@ -9,7 +9,7 @@ export function Layout({ route, session, children, navigate }) {
     ['home', 'Início'],
     [isSignedIn ? 'conta' : 'acesso', isSignedIn ? 'Conta' : 'Acesso'],
     ...(isSignedIn ? [['atividades', 'Atividades'], ['prova', 'Prova']] : []),
-    ...(isAdmin ? [['admin', 'Admin']] : [])
+    ...(isAdmin ? [['admin', 'Administração']] : [])
   ];
 
   return (

@@ -1,3 +1,5 @@
+import { APP_CONFIG } from '../config.js';
+
 export function Account({ student, session, onSignOut }) {
   if (!student || !session) return null;
 
@@ -7,6 +9,11 @@ export function Account({ student, session, onSignOut }) {
         <span className="eyebrow">Conta</span>
         <h1>Perfil e acesso</h1>
         <p>Veja seus dados principais e encerre a sessão quando terminar de usar o sistema.</p>
+      </section>
+
+      <section className="account-subnav panel" aria-label="Menu da conta">
+        <span className="account-subnav__item account-subnav__item--active">Perfil</span>
+        <button className="account-subnav__item account-subnav__item--danger" type="button" onClick={onSignOut}>Sair da conta</button>
       </section>
 
       <section className="form-layout account-layout">
@@ -24,8 +31,8 @@ export function Account({ student, session, onSignOut }) {
         </article>
 
         <aside className="panel side-note account-menu-card">
-          <h2>Menu da conta</h2>
-          <p>A sessão local fica ativa por tempo limitado. Use o botão abaixo para sair imediatamente.</p>
+          <h2>Sessão ativa</h2>
+          <p>Sua conta permanece conectada neste navegador por até <strong>{APP_CONFIG.sessionDurationHours} horas</strong>. Depois disso, o acesso é limpo automaticamente.</p>
           <button className="button button--danger button--full" type="button" onClick={onSignOut}>Sair da conta</button>
         </aside>
       </section>

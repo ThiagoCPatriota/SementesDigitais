@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { isValidEmail, isValidPhoneShape } from '../utils/validators.js';
-import { loginStudentAccount, registerStudentAccount, saveAuthSession } from '../services/authService.js';
+import { isAdminEmail, loginStudentAccount, registerStudentAccount, saveAuthSession } from '../services/authService.js';
 import { save } from '../services/storage.js';
 
 export function Access({ config, student, onAuthenticated, showToast }) {
@@ -41,7 +41,7 @@ export function Access({ config, student, onAuthenticated, showToast }) {
     setLoading(true);
     try {
       const authResult = await loginStudentAccount({ email: data.email.trim(), password: data.password });
-      const session = persistAuthenticatedAccess(authResult, { classCode: data.classCode.trim().toUpperCase(), terms: true });
+          const session = persistAuthenticatedAccess(authResult, { classCode: data.classCode?.trim().toUpperCase() || config.classCode, terms: true });
       showToast(session.role === 'admin' ? 'Login administrativo realizado.' : 'Login realizado com sucesso.');
       onAuthenticated(session, 'atividades');
     } catch (error) {
@@ -88,7 +88,7 @@ export function Access({ config, student, onAuthenticated, showToast }) {
             </div>
             <label>E-mail<input type="email" name="email" defaultValue={student?.email ?? ''} placeholder="aluno@email.com" required /></label>
             <label>Senha<input type="password" name="password" placeholder="Sua senha" minLength="6" required /></label>
-            <label>Código da atividade<input name="classCode" defaultValue={student?.classCode ?? config.classCode} placeholder="Código informado pela equipe" required /></label>
+            <label>Código da atividade<input name="classCode" defaultValue={student?.classCode ?? config.classCode} placeholder="Código informado pela equipe" /></label>
             <button className="button button--primary button--full" type="submit" disabled={loading}>{loading ? 'Entrando...' : 'Entrar e continuar'}</button>
           </form>
         )}
@@ -112,7 +112,8 @@ function validateAccessData(data, config, isRegister) {
   if (!isValidEmail(data.email)) return 'Informe um e-mail válido.';
   if (isRegister && !isValidPhoneShape(data.phone)) return 'Informe um telefone válido com DDD.';
   if (!data.password || data.password.length < 6) return 'A senha precisa ter pelo menos 6 caracteres.';
-  if (data.classCode.trim().toUpperCase() !== config.classCode.toUpperCase()) return 'Código da atividade incorreto.';
+  const isAdminLogin = !isRegister && isAdminEmail(data.email);
+  if (!isAdminLogin && (!data.classCode?.trim() || data.classCode.trim().toUpperCase() !== config.classCode.toUpperCase())) return 'Código da atividade incorreto.';
   return '';
 }
 

@@ -1218,3 +1218,126 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* v08 — Navegação/conta e atividades publicadas pelo administrador */
+.badge--muted {
+  background: #eef2ec;
+  color: var(--muted);
+}
+
+.notice-card--soft {
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.activity-empty-card {
+  margin-bottom: 1rem;
+}
+
+.activity-grid {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.account-subnav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  width: fit-content;
+  margin-bottom: 1rem;
+  padding: 0.45rem;
+  border-radius: 999px;
+}
+
+.account-subnav__item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: default;
+  font-weight: 900;
+}
+
+button.account-subnav__item {
+  cursor: pointer;
+}
+
+.account-subnav__item--active {
+  background: var(--primary-soft);
+  color: var(--primary-dark);
+}
+
+.account-subnav__item--danger {
+  background: #ffe4e4;
+  color: var(--danger);
+}
+
+.admin-activities-section {
+  margin-top: 1.25rem;
+}
+
+.section-header--compact {
+  padding-bottom: 0.5rem;
+}
+
+.section-header--compact h2 {
+  margin: 0.35rem 0 0.4rem;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+
+.admin-activity-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.admin-activity-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-activity-card h3 {
+  margin: 0.7rem 0 0.25rem;
+  font-size: 1.2rem;
+}
+
+.admin-activity-card p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.admin-activity-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .account-subnav {
+    width: 100%;
+    border-radius: 24px;
+  }
+
+  .account-subnav__item {
+    flex: 1;
+  }
+
+  .admin-activity-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .admin-activity-card__actions,
+  .admin-activity-card__actions .button {
+    width: 100%;
+  }
+}
