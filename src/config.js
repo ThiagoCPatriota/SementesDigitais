@@ -7,7 +7,8 @@ export const APP_CONFIG = {
   sessionDurationHours: 10,
   supabase: {
     url: import.meta.env.VITE_SUPABASE_URL || '',
-    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+    publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
   },
   admin: {
     emails: ['admin@sementesdigitais.com']

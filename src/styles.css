@@ -2197,3 +2197,9 @@ button.account-subnav__item {
     width: 100%;
   }
 }
+
+.admin-sync-note {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted-text);
+}

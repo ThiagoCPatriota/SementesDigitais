@@ -1,13 +1,41 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { saveExamConfig } from '../services/examService.js';
-import { createActivity, getActivities, getActivityResponses, updateActivityStatus } from '../services/activityService.js';
+import {
+  createActivity,
+  getActivities,
+  getActivityResponses,
+  getDataStorageMode,
+  syncActivitiesFromCloud,
+  syncActivityAttemptsFromCloud,
+  updateActivityStatus
+} from '../services/activityService.js';
 
 export function Admin({ config, onConfigSaved, showToast, navigate }) {
   const [form, setForm] = useState({ sourceMode: 'enem-dev', examYear: 'mixed', ...config, publishNow: true });
   const [activities, setActivities] = useState(() => getActivities());
+  const [syncing, setSyncing] = useState(false);
 
   const publishedCount = activities.filter((activity) => activity.status === 'published').length;
   const totalStarted = activities.reduce((total, activity) => total + getActivityResponses(activity.id).length, 0);
+  const storageMode = getDataStorageMode();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncCloudData() {
+      setSyncing(true);
+      await Promise.all([syncActivitiesFromCloud(), syncActivityAttemptsFromCloud()]);
+      if (!isMounted) return;
+      setActivities(getActivities());
+      setSyncing(false);
+    }
+
+    syncCloudData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   function updateField(event) {
     const { name, value, type, checked } = event.target;
@@ -100,6 +128,8 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
             <span><strong>Publicadas:</strong> {publishedCount}</span>
             <span><strong>Rascunhos:</strong> {activities.length - publishedCount}</span>
             <span><strong>Alunos iniciaram:</strong> {totalStarted}</span>
+            <span><strong>Armazenamento:</strong> {storageMode === 'supabase' ? 'Supabase' : 'Local'}</span>
+            {syncing ? <span><strong>Status:</strong> sincronizando dados...</span> : null}
           </div>
           <button className="button button--ghost button--full" type="button" onClick={() => navigate('atividades')}>Ver área de atividades</button>
         </aside>

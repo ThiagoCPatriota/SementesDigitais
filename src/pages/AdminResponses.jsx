@@ -1,16 +1,41 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { APP_CONFIG } from '../config.js';
 import { mockQuestions } from '../data/mockQuestions.js';
-import { getActivityById, getActivityResponses } from '../services/activityService.js';
+import {
+  getActivityById,
+  getActivityResponses,
+  syncActivitiesFromCloud,
+  syncActivityAttemptsFromCloud
+} from '../services/activityService.js';
 import { fetchQuestionSetFromEnemDev, getLanguageLabel } from '../services/enemApi.js';
 
 export function AdminResponses({ activityId, navigate }) {
-  const activity = getActivityById(activityId);
+  const [activity, setActivity] = useState(() => getActivityById(activityId));
+  const [responses, setResponses] = useState(() => activity ? getActivityResponses(activity.id) : []);
   const [questions, setQuestions] = useState([]);
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [questionError, setQuestionError] = useState('');
+  const [syncingCloud, setSyncingCloud] = useState(false);
+  useEffect(() => {
+    let isMounted = true;
 
-  const responses = useMemo(() => (activity ? getActivityResponses(activity.id) : []), [activity?.id]);
+    async function syncCloudData() {
+      setSyncingCloud(true);
+      await Promise.all([syncActivitiesFromCloud(), syncActivityAttemptsFromCloud(activityId)]);
+      if (!isMounted) return;
+      const nextActivity = getActivityById(activityId);
+      setActivity(nextActivity);
+      setResponses(nextActivity ? getActivityResponses(nextActivity.id) : []);
+      setSyncingCloud(false);
+    }
+
+    syncCloudData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activityId]);
+
 
   useEffect(() => {
     let isMounted = true;
@@ -63,6 +88,7 @@ export function AdminResponses({ activityId, navigate }) {
             <p>
               {activity.questionCount} questões • {activity.durationMinutes} minutos • {formatQuestionSource(activity)} • Criado em {formatDate(activity.createdAt)}
             </p>
+            {syncingCloud ? <p className="admin-sync-note">Sincronizando respostas do Supabase...</p> : null}
           </div>
           <button className="button button--ghost" type="button" onClick={() => navigate('admin')}>Voltar</button>
         </div>

@@ -1,9 +1,60 @@
 import { APP_CONFIG } from '../config.js';
 import { load, save } from './storage.js';
+import {
+  fetchCloudActivities,
+  fetchCloudActivityAttempts,
+  fetchCloudPersonalActivities,
+  isCloudDataEnabled,
+  updateCloudActivityStatus,
+  upsertCloudActivity,
+  upsertCloudActivityAttempt,
+  upsertCloudPersonalActivity
+} from './supabaseDataService.js';
 
 const CLASS_ACTIVITIES_KEY = 'classActivities';
 const PERSONAL_ACTIVITIES_KEY = 'personalActivities';
 const CLASS_ACTIVITY_ATTEMPTS_KEY = 'classActivityAttempts';
+
+export function getDataStorageMode() {
+  return isCloudDataEnabled() ? 'supabase' : 'local';
+}
+
+export async function syncActivitiesFromCloud() {
+  const cloudActivities = await fetchCloudActivities();
+  if (Array.isArray(cloudActivities)) {
+    save(CLASS_ACTIVITIES_KEY, sortByDateDesc(cloudActivities));
+  }
+  return getActivities();
+}
+
+export async function syncActivityAttemptsFromCloud(activityId = '') {
+  const cloudAttempts = await fetchCloudActivityAttempts(activityId);
+  if (Array.isArray(cloudAttempts)) {
+    if (activityId) {
+      const otherAttempts = getActivityAttempts().filter((attempt) => attempt.activityId !== activityId);
+      save(CLASS_ACTIVITY_ATTEMPTS_KEY, sortByDateDesc([...cloudAttempts, ...otherAttempts], 'startedAt'));
+    } else {
+      save(CLASS_ACTIVITY_ATTEMPTS_KEY, sortByDateDesc(cloudAttempts, 'startedAt'));
+    }
+  }
+  return getActivityAttempts();
+}
+
+export async function syncPersonalActivitiesFromCloud(ownerEmail) {
+  const cloudActivities = await fetchCloudPersonalActivities(ownerEmail);
+  if (Array.isArray(cloudActivities)) {
+    save(getPersonalActivitiesKey(ownerEmail), sortByDateDesc(cloudActivities));
+  }
+  return getPersonalActivities(ownerEmail);
+}
+
+export async function syncDashboardDataFromCloud(ownerEmail = '') {
+  await Promise.all([
+    syncActivitiesFromCloud(),
+    syncActivityAttemptsFromCloud(),
+    ownerEmail ? syncPersonalActivitiesFromCloud(ownerEmail) : Promise.resolve([])
+  ]);
+}
 
 export function getActivities() {
   const activities = load(CLASS_ACTIVITIES_KEY, []);
@@ -16,8 +67,9 @@ export function getPublishedActivities() {
 
 export function createActivity(data) {
   const activity = normalizeClassActivity(data);
-  const activities = [activity, ...getActivities()];
+  const activities = [activity, ...getActivities().filter((item) => item.id !== activity.id)];
   save(CLASS_ACTIVITIES_KEY, activities);
+  mirrorToCloud(upsertCloudActivity(activity));
   return activity;
 }
 
@@ -29,6 +81,7 @@ export function updateActivityStatus(activityId, status) {
       : activity
   );
   save(CLASS_ACTIVITIES_KEY, activities);
+  mirrorToCloud(updateCloudActivityStatus(activityId, normalizedStatus));
   return sortByDateDesc(activities);
 }
 
@@ -78,7 +131,7 @@ export function recordClassActivityStart(activityConfig, attempt) {
     submittedAt: null,
     status: 'em_andamento',
     totalQuestions: Number(attempt.questionCount || activityConfig.questionCount || APP_CONFIG.defaultExam.questionCount),
-    languageChoice: attempt.languageChoice || existingForStudent?.languageChoice || "",
+    languageChoice: attempt.languageChoice || existingForStudent?.languageChoice || '',
     answeredCount: existingForStudent?.answeredCount ?? 0,
     correctCount: null,
     wrongCount: null,
@@ -94,6 +147,7 @@ export function recordClassActivityStart(activityConfig, attempt) {
   const withoutCurrent = attempts.filter((item) => item.id !== record.id && item.attemptId !== record.attemptId);
   const next = [record, ...withoutCurrent];
   save(CLASS_ACTIVITY_ATTEMPTS_KEY, next);
+  mirrorToCloud(upsertCloudActivityAttempt(record));
   return record;
 }
 
@@ -110,7 +164,7 @@ export function updateClassActivityAttemptProgress(attempt, answersSnapshot = {}
 
   const record = {
     ...existing,
-    languageChoice: attempt.languageChoice || existing.languageChoice || "",
+    languageChoice: attempt.languageChoice || existing.languageChoice || '',
     answeredCount: Object.keys(answersSnapshot || {}).length,
     attemptSnapshot: { ...attempt, status: existing.status || attempt.status },
     answersSnapshot,
@@ -119,6 +173,7 @@ export function updateClassActivityAttemptProgress(attempt, answersSnapshot = {}
 
   const next = [record, ...attempts.filter((item) => item.id !== record.id && item.attemptId !== record.attemptId)];
   save(CLASS_ACTIVITY_ATTEMPTS_KEY, next);
+  mirrorToCloud(upsertCloudActivityAttempt(record));
   return record;
 }
 
@@ -150,7 +205,7 @@ export function updateClassActivityAttemptResult(attempt, result, answersSnapsho
     correctCount,
     wrongCount: Math.max(0, answeredCount - correctCount),
     blankCount: Number(result.blankCount || 0),
-    languageChoice: attempt.languageChoice || result.languageChoice || existing?.languageChoice || "",
+    languageChoice: attempt.languageChoice || result.languageChoice || existing?.languageChoice || '',
     scorePercent: Number(result.scorePercent || 0),
     result,
     attemptSnapshot: { ...attempt, submittedAt: result.finalizedAt, status: result.reason === 'expired' ? 'expirada' : 'finalizada' },
@@ -162,6 +217,7 @@ export function updateClassActivityAttemptResult(attempt, result, answersSnapsho
   const withoutCurrent = attempts.filter((item) => item.id !== record.id && item.attemptId !== record.attemptId);
   const next = [record, ...withoutCurrent];
   save(CLASS_ACTIVITY_ATTEMPTS_KEY, next);
+  mirrorToCloud(upsertCloudActivityAttempt(record));
   return record;
 }
 
@@ -194,8 +250,9 @@ export function getPersonalActivities(ownerEmail) {
 
 export function createPersonalActivity(data) {
   const activity = normalizePersonalActivity(data);
-  const activities = [activity, ...getPersonalActivities(data.ownerEmail)];
+  const activities = [activity, ...getPersonalActivities(data.ownerEmail).filter((item) => item.id !== activity.id)];
   save(getPersonalActivitiesKey(data.ownerEmail), activities);
+  mirrorToCloud(upsertCloudPersonalActivity(activity));
   return activity;
 }
 
@@ -206,7 +263,9 @@ export function updatePersonalActivity(ownerEmail, activityId, patch) {
       : activity
   );
   save(getPersonalActivitiesKey(ownerEmail), activities);
-  return activities.find((activity) => activity.id === activityId) ?? null;
+  const updatedActivity = activities.find((activity) => activity.id === activityId) ?? null;
+  if (updatedActivity) mirrorToCloud(upsertCloudPersonalActivity(updatedActivity));
+  return updatedActivity;
 }
 
 export function updatePersonalActivityProgress(attempt, answersSnapshot = {}) {
@@ -272,7 +331,7 @@ function normalizeClassActivity(data) {
     questionCount: Number(data.questionCount) || APP_CONFIG.defaultExam.questionCount,
     sourceMode: data.sourceMode || 'enem-dev',
     examYear: data.examYear || 'mixed',
-    requiresLanguageChoice: (data.sourceMode || "enem-dev") === "enem-dev" ? data.requiresLanguageChoice !== false : false,
+    requiresLanguageChoice: (data.sourceMode || 'enem-dev') === 'enem-dev' ? data.requiresLanguageChoice !== false : false,
     questionSeed: data.questionSeed || Date.now(),
     questionsSnapshot: Array.isArray(data.questionsSnapshot) ? data.questionsSnapshot : [],
     activityType: 'turma',
@@ -288,14 +347,14 @@ function normalizePersonalActivity(data) {
 
   return {
     id: data.id || `personal-${Date.now()}`,
-    ownerEmail: data.ownerEmail,
+    ownerEmail: normalizeEmail(data.ownerEmail),
     title: data.title?.trim() || fallback.title,
     classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || fallback.durationMinutes,
     questionCount: Number(data.questionCount) || fallback.questionCount,
     sourceMode: data.sourceMode || 'enem-dev',
     examYear: data.examYear || 'mixed',
-    requiresLanguageChoice: (data.sourceMode || "enem-dev") === "enem-dev" ? data.requiresLanguageChoice !== false : false,
+    requiresLanguageChoice: (data.sourceMode || 'enem-dev') === 'enem-dev' ? data.requiresLanguageChoice !== false : false,
     questionSeed: data.questionSeed || Date.now(),
     questionsSnapshot: Array.isArray(data.questionsSnapshot) ? data.questionsSnapshot : [],
     activityType: 'pessoal',
@@ -312,7 +371,7 @@ function normalizePersonalActivity(data) {
 }
 
 function getPersonalActivitiesKey(ownerEmail = '') {
-  return `${PERSONAL_ACTIVITIES_KEY}:${String(ownerEmail).trim().toLowerCase() || 'anonimo'}`;
+  return `${PERSONAL_ACTIVITIES_KEY}:${normalizeEmail(ownerEmail) || 'anonimo'}`;
 }
 
 function sortByDateDesc(items, field = 'createdAt') {
@@ -330,4 +389,11 @@ function sanitizeStudent(student = {}) {
     phone: student.phone || '',
     classGroup: student.classGroup || ''
   };
+}
+
+function mirrorToCloud(promise) {
+  if (!promise || typeof promise.catch !== 'function') return;
+  promise.catch((error) => {
+    console.warn('Não foi possível sincronizar com o Supabase neste momento.', error);
+  });
 }
