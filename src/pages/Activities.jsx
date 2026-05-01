@@ -115,7 +115,9 @@ export function Activities({ student, session, config, navigate, showToast, refr
       questionCount,
       durationMinutes,
       ownerEmail: student.email,
-      classCode: config.classCode
+      classCode: config.classCode,
+      sourceMode: config.sourceMode || 'enem-dev',
+      examYear: config.examYear || 'mixed'
     });
 
     const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });

@@ -1,21 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { saveExamConfig } from '../services/examService.js';
 import { createActivity, getActivities, getActivityResponses, updateActivityStatus } from '../services/activityService.js';
 
 export function Admin({ config, onConfigSaved, showToast, navigate }) {
-  const [form, setForm] = useState({ ...config, publishNow: true });
+  const [form, setForm] = useState({ sourceMode: 'enem-dev', examYear: 'mixed', ...config, publishNow: true });
   const [activities, setActivities] = useState(() => getActivities());
-  const [selectedActivityId, setSelectedActivityId] = useState(() => getActivities()[0]?.id ?? null);
-
-  const selectedActivity = useMemo(
-    () => activities.find((activity) => activity.id === selectedActivityId) ?? activities[0] ?? null,
-    [activities, selectedActivityId]
-  );
-
-  const responses = useMemo(
-    () => (selectedActivity ? getActivityResponses(selectedActivity.id) : []),
-    [selectedActivity, activities]
-  );
 
   const publishedCount = activities.filter((activity) => activity.status === 'published').length;
   const totalStarted = activities.reduce((total, activity) => total + getActivityResponses(activity.id).length, 0);
@@ -31,7 +20,6 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
     const updatedConfig = saveExamConfig(activity);
     const nextActivities = getActivities();
     setActivities(nextActivities);
-    setSelectedActivityId(activity.id);
     onConfigSaved(updatedConfig);
     showToast(activity.status === 'published' ? 'Atividade criada e publicada para os alunos.' : 'Atividade criada como rascunho.');
     setForm((current) => ({
@@ -47,12 +35,8 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
     showToast(status === 'published' ? 'Atividade publicada para os alunos.' : 'Atividade ocultada dos alunos.');
   }
 
-  function selectResponses(activityId) {
-    setSelectedActivityId(activityId);
-    window.setTimeout(() => {
-      document.querySelector('#admin-responses')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 80);
-    showToast('Painel de respostas atualizado.');
+  function openResponses(activityId) {
+    navigate(`admin-respostas/${encodeURIComponent(activityId)}`);
   }
 
   return (
@@ -79,14 +63,27 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
 
           <label>Código da atividade<input name="classCode" value={form.classCode} onChange={updateField} required /></label>
 
-          <label>
-            Fonte de questões
-            <select name="sourceMode" value={form.sourceMode || 'mock'} onChange={updateField}>
-              <option value="mock">Banco interno de questões</option>
-              <option value="enem-dev" disabled>API enem.dev — integração futura</option>
-            </select>
-            <small>Na versão com backend, o gabarito deve ficar protegido no servidor.</small>
-          </label>
+          <div className="form-grid">
+            <label>
+              Fonte de questões
+              <select name="sourceMode" value={form.sourceMode || 'enem-dev'} onChange={updateField}>
+                <option value="enem-dev">API enem.dev — questões reais do ENEM</option>
+                <option value="mock">Banco interno de demonstração</option>
+              </select>
+              <small>Para o MVP, o app busca enunciados, alternativas e imagens direto da API.</small>
+            </label>
+
+            <label>
+              Ano da prova
+              <select name="examYear" value={form.examYear || 'mixed'} onChange={updateField} disabled={(form.sourceMode || 'enem-dev') === 'mock'}>
+                <option value="mixed">Misturar anos 2009–2023</option>
+                {Array.from({ length: 15 }, (_, index) => 2023 - index).map((year) => (
+                  <option key={year} value={year}>ENEM {year}</option>
+                ))}
+              </select>
+              <small>Use “misturar anos” para aproveitar o banco com mais variedade.</small>
+            </label>
+          </div>
 
           <label className="check-row">
             <input type="checkbox" name="publishNow" checked={Boolean(form.publishNow)} onChange={updateField} />
@@ -127,7 +124,7 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
               const isLatestPublished = activity.status === 'published' && index === activities.findIndex((item) => item.status === 'published');
 
               return (
-                <article className={`panel admin-activity-card ${isLatestPublished ? 'admin-activity-card--latest' : ''} ${selectedActivityId === activity.id ? 'admin-activity-card--selected' : ''}`} key={activity.id}>
+                <article className={`panel admin-activity-card ${isLatestPublished ? 'admin-activity-card--latest' : ''}`} key={activity.id}>
                   <div className="admin-activity-card__main">
                     <span className={`badge ${activity.status === 'published' ? '' : 'badge--muted'}`}>
                       {isLatestPublished ? 'Mais recente' : activity.status === 'published' ? 'Publicada' : 'Rascunho'}
@@ -141,7 +138,7 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
                   </div>
 
                   <div className="admin-activity-card__actions">
-                    <button className="button button--ghost" type="button" onClick={() => selectResponses(activity.id)}>Ver respostas</button>
+                    <button className="button button--ghost" type="button" onClick={() => openResponses(activity.id)}>Ver respostas</button>
                     {activity.status === 'published' ? (
                       <button className="button button--ghost" type="button" onClick={() => handleStatusChange(activity.id, 'draft')}>Ocultar</button>
                     ) : (
@@ -154,55 +151,6 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
           </div>
         )}
       </section>
-
-      <section className="admin-responses-section" id="admin-responses">
-        <div className="section-header section-header--compact">
-          <span className="eyebrow">Respostas dos alunos</span>
-          <h2>{selectedActivity ? selectedActivity.title : 'Selecione uma atividade'}</h2>
-          <p>Veja quem iniciou a atividade e acompanhe o desempenho geral de cada aluno.</p>
-        </div>
-
-        {!selectedActivity ? (
-          <article className="notice-card notice-card--soft">
-            <strong>Nenhum simulado selecionado</strong>
-            <p>Crie ou selecione uma atividade para visualizar as respostas dos alunos.</p>
-          </article>
-        ) : responses.length === 0 ? (
-          <article className="notice-card notice-card--soft">
-            <strong>Nenhum aluno iniciou esta atividade ainda</strong>
-            <p>Quando os alunos clicarem em iniciar, eles aparecerão neste painel.</p>
-          </article>
-        ) : (
-          <div className="admin-response-grid">
-            {responses.map((response) => (
-              <article className="panel admin-response-card" key={response.attemptId}>
-                <div className="admin-response-card__top">
-                  <div>
-                    <span className={`badge ${response.result ? '' : 'badge--muted'}`}>{formatStatus(response.status)}</span>
-                    <h3>{response.student?.name || 'Aluno'}</h3>
-                    <p>{response.student?.email || 'E-mail não informado'}</p>
-                  </div>
-                  <strong className="admin-response-card__score">{response.result ? `${response.scorePercent}%` : '—'}</strong>
-                </div>
-
-                <div className="summary-list admin-response-card__info">
-                  <span><strong>Telefone:</strong> {response.student?.phone || 'Não informado'}</span>
-                  <span><strong>Escola/turma:</strong> {response.student?.classGroup || 'Não informado'}</span>
-                  <span><strong>Início:</strong> {formatDateTime(response.startedAt)}</span>
-                  <span><strong>Finalização:</strong> {response.submittedAt ? formatDateTime(response.submittedAt) : 'Em andamento'}</span>
-                </div>
-
-                <div className="admin-response-metrics">
-                  <span><strong>{response.answeredCount ?? 0}</strong> respondidas</span>
-                  <span><strong>{response.correctCount ?? '—'}</strong> acertos</span>
-                  <span><strong>{response.wrongCount ?? '—'}</strong> erros</span>
-                  <span><strong>{response.blankCount ?? '—'}</strong> em branco</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
     </>
   );
 }
@@ -210,24 +158,4 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
 function formatDate(value) {
   if (!value) return '—';
   return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(value));
-}
-
-function formatDateTime(value) {
-  if (!value) return '—';
-  return new Intl.DateTimeFormat('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
-}
-
-function formatStatus(status) {
-  const labels = {
-    em_andamento: 'Em andamento',
-    finalizada: 'Finalizada',
-    expirada: 'Expirada'
-  };
-  return labels[status] || status || '—';
 }

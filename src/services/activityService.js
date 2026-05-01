@@ -78,6 +78,7 @@ export function recordClassActivityStart(activityConfig, attempt) {
     submittedAt: null,
     status: 'em_andamento',
     totalQuestions: Number(attempt.questionCount || activityConfig.questionCount || APP_CONFIG.defaultExam.questionCount),
+    languageChoice: attempt.languageChoice || existingForStudent?.languageChoice || "",
     answeredCount: existingForStudent?.answeredCount ?? 0,
     correctCount: null,
     wrongCount: null,
@@ -109,6 +110,7 @@ export function updateClassActivityAttemptProgress(attempt, answersSnapshot = {}
 
   const record = {
     ...existing,
+    languageChoice: attempt.languageChoice || existing.languageChoice || "",
     answeredCount: Object.keys(answersSnapshot || {}).length,
     attemptSnapshot: { ...attempt, status: existing.status || attempt.status },
     answersSnapshot,
@@ -148,6 +150,7 @@ export function updateClassActivityAttemptResult(attempt, result, answersSnapsho
     correctCount,
     wrongCount: Math.max(0, answeredCount - correctCount),
     blankCount: Number(result.blankCount || 0),
+    languageChoice: attempt.languageChoice || result.languageChoice || existing?.languageChoice || "",
     scorePercent: Number(result.scorePercent || 0),
     result,
     attemptSnapshot: { ...attempt, submittedAt: result.finalizedAt, status: result.reason === 'expired' ? 'expirada' : 'finalizada' },
@@ -168,6 +171,7 @@ export function restoreClassActivityAttempt(activityId, studentEmail) {
 
   save('attempt', record.attemptSnapshot);
   save('answers', record.answersSnapshot || {});
+  save('attemptQuestions', record.attemptSnapshot?.questionsSnapshot || []);
   save('result', null);
   return true;
 }
@@ -179,6 +183,7 @@ export function restoreClassActivityResult(activityId, studentEmail) {
   save('attempt', record.attemptSnapshot);
   save('result', record.result);
   save('answers', record.answersSnapshot || {});
+  save('attemptQuestions', record.attemptSnapshot?.questionsSnapshot || record.result?.questionsSnapshot || []);
   return true;
 }
 
@@ -236,6 +241,7 @@ export function restorePersonalActivityAttempt(activity) {
   if (!activity?.attemptSnapshot || activity.result || activity.status === 'finished') return false;
   save('attempt', activity.attemptSnapshot);
   save('answers', activity.answersSnapshot || {});
+  save('attemptQuestions', activity.attemptSnapshot?.questionsSnapshot || []);
   save('result', null);
   return true;
 }
@@ -245,6 +251,7 @@ export function restorePersonalActivityResult(activity) {
   save('attempt', activity.attemptSnapshot);
   save('result', activity.result);
   save('answers', activity.answersSnapshot || {});
+  save('attemptQuestions', activity.attemptSnapshot?.questionsSnapshot || activity.result?.questionsSnapshot || []);
   return true;
 }
 
@@ -263,7 +270,11 @@ function normalizeClassActivity(data) {
     classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(data.questionCount) || APP_CONFIG.defaultExam.questionCount,
-    sourceMode: data.sourceMode || 'mock',
+    sourceMode: data.sourceMode || 'enem-dev',
+    examYear: data.examYear || 'mixed',
+    requiresLanguageChoice: (data.sourceMode || "enem-dev") === "enem-dev" ? data.requiresLanguageChoice !== false : false,
+    questionSeed: data.questionSeed || Date.now(),
+    questionsSnapshot: Array.isArray(data.questionsSnapshot) ? data.questionsSnapshot : [],
     activityType: 'turma',
     status: data.status || (data.publishNow ? 'published' : 'draft'),
     createdAt,
@@ -282,7 +293,11 @@ function normalizePersonalActivity(data) {
     classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || fallback.durationMinutes,
     questionCount: Number(data.questionCount) || fallback.questionCount,
-    sourceMode: data.sourceMode || 'mock',
+    sourceMode: data.sourceMode || 'enem-dev',
+    examYear: data.examYear || 'mixed',
+    requiresLanguageChoice: (data.sourceMode || "enem-dev") === "enem-dev" ? data.requiresLanguageChoice !== false : false,
+    questionSeed: data.questionSeed || Date.now(),
+    questionsSnapshot: Array.isArray(data.questionsSnapshot) ? data.questionsSnapshot : [],
     activityType: 'pessoal',
     status: 'created',
     createdAt,

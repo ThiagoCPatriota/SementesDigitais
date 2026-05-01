@@ -147,6 +147,6 @@ export const mockQuestions = Array.from({ length: 60 }, (_, index) => {
     ...original,
     id: `mock-${String(index + 1).padStart(3, '0')}`,
     number: index + 1,
-    statement: `${original.statement} ${index >= baseQuestions.length ? '(Variação para demonstração do MVP.)' : ''}`
+    statement: original.statement
   };
 });

@@ -16,7 +16,9 @@ export const APP_CONFIG = {
     title: 'Simulado Sementes Digitais 01',
     durationMinutes: 180,
     questionCount: 60,
-    classCode: 'SEMENTES2026'
+    classCode: 'SEMENTES2026',
+    sourceMode: 'enem-dev',
+    examYear: 'mixed'
   },
   personalActivity: {
     title: 'Prática pessoal ENEM',
