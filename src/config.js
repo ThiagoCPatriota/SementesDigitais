@@ -4,9 +4,10 @@ export const APP_CONFIG = {
   organization: 'ANIMUS',
   slogan: 'Clareza para decidir. Técnica para construir. Impacto para transformar.',
   questionBankLabel: 'Mais de 2700 questões do ENEM',
+  sessionDurationHours: 10,
   supabase: {
-    url: '',
-    anonKey: ''
+    url: import.meta.env.VITE_SUPABASE_URL || '',
+    anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || ''
   },
   admin: {
     emails: ['admin@sementesdigitais.com']
