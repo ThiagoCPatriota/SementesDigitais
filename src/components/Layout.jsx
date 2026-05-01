@@ -5,12 +5,18 @@ export function Layout({ route, session, children, navigate }) {
   const isSignedIn = Boolean(session);
   const isAdmin = session?.role === 'admin';
 
-  const items = [
-    ['home', 'Início'],
-    [isSignedIn ? 'conta' : 'acesso', isSignedIn ? 'Conta' : 'Acesso'],
-    ...(isSignedIn ? [['atividades', 'Atividades'], ['prova', 'Prova']] : []),
-    ...(isAdmin ? [['admin', 'Administração']] : [])
-  ];
+  const items = isSignedIn
+    ? [
+        ['home', 'Início'],
+        ['atividades', 'Atividades'],
+        ['prova', 'Prova'],
+        ...(isAdmin ? [['admin', 'Administração']] : []),
+        ['conta', 'Conta']
+      ]
+    : [
+        ['home', 'Início'],
+        ['acesso', 'Acesso']
+      ];
 
   return (
     <>

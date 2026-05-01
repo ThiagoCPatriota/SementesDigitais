@@ -162,7 +162,7 @@ function renderRoute(props) {
     case 'conta':
       return <Account student={props.student} session={props.session} onSignOut={props.onSignOut} />;
     case 'atividades':
-      return <Activities student={props.student} session={props.session} config={props.config} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} />;
+      return <Activities student={props.student} session={props.session} config={props.config} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} refreshResult={props.refreshResult} />;
     case 'prova':
       return <Exam attempt={props.attempt} result={props.result} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} refreshResult={props.refreshResult} />;
     case 'resultado':

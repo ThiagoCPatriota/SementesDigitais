@@ -1,6 +1,7 @@
 import { APP_CONFIG } from '../config.js';
 import { mockQuestions } from '../data/mockQuestions.js';
 import { clearAttemptData, load, save } from './storage.js';
+import { markPersonalActivityFinished } from './activityService.js';
 
 export function getExamConfig() {
   return load('examConfig', {
@@ -47,6 +48,7 @@ export function startAttempt(student, activityConfig = {}) {
     student,
     examTitle: config.title,
     activityType: config.activityType || 'turma',
+    activityId: config.activityId || config.id || null,
     durationMinutes,
     questionCount,
     startedAt: now.toISOString(),
@@ -102,12 +104,18 @@ export function finalizeAttempt(reason = 'manual') {
     finalizedAt: new Date().toISOString()
   };
 
-  save('attempt', {
+  const finalizedAttempt = {
     ...attempt,
     submittedAt: result.finalizedAt,
     status: reason === 'expired' ? 'expirada' : 'finalizada'
-  });
+  };
+
+  save('attempt', finalizedAttempt);
   save('result', result);
+
+  if (finalizedAttempt.activityType === 'pessoal' && finalizedAttempt.activityId) {
+    markPersonalActivityFinished(finalizedAttempt.activityId, result, finalizedAttempt);
+  }
 
   return result;
 }

@@ -1341,3 +1341,91 @@ button.account-subnav__item {
     width: 100%;
   }
 }
+
+/* v09 — Ordem da navegação e grade compacta de atividades */
+.activity-grid--compact {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.activity-card--compact {
+  min-height: 0;
+  gap: 0.8rem;
+  padding: 1.15rem;
+  border-radius: 24px;
+}
+
+.activity-card--compact .activity-card__icon {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  font-size: 1.25rem;
+}
+
+.activity-card--compact h2 {
+  font-size: clamp(1.18rem, 2.2vw, 1.55rem);
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.activity-card--compact p {
+  line-height: 1.55;
+}
+
+.activity-card__date {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.activity-card--personal {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(251, 253, 249, 0.9)),
+    radial-gradient(circle at 86% 12%, rgba(242, 184, 75, 0.13), transparent 13rem);
+}
+
+.activity-card--finished {
+  opacity: 0.88;
+}
+
+.activity-card--finished .activity-card__icon {
+  background: #eef2ec;
+  color: var(--muted);
+}
+
+.activity-card--create-form {
+  border-style: dashed;
+}
+
+.activity-card--create-form .activity-card__plus {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  font-size: 1.8rem;
+}
+
+.activity-create-form {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
+}
+
+.activity-create-form label {
+  font-size: 0.92rem;
+}
+
+.activity-create-form input {
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+}
+
+.form-grid--compact {
+  gap: 0.65rem;
+}
+
+@media (max-width: 720px) {
+  .activity-grid--compact {
+    grid-template-columns: 1fr;
+  }
+}
