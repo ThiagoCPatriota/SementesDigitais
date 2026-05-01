@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { APP_CONFIG } from './config.js';
 import { Layout, EmptyState } from './components/Layout.jsx';
 import { Toast } from './components/Toast.jsx';
 import { Home } from './pages/Home.jsx';
@@ -7,6 +6,7 @@ import { Access } from './pages/Access.jsx';
 import { Account } from './pages/Account.jsx';
 import { Activities } from './pages/Activities.jsx';
 import { Admin } from './pages/Admin.jsx';
+import { AdminResponses } from './pages/AdminResponses.jsx';
 import { Exam } from './pages/Exam.jsx';
 import { Result } from './pages/Result.jsx';
 import { clearAttemptData, load } from './services/storage.js';
@@ -46,6 +46,13 @@ export default function App() {
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [route]);
+
+  useEffect(() => {
+    const isAuthenticated = Boolean(session && student);
+    if (isAuthenticated && route === 'home') {
+      navigate('atividades');
+    }
+  }, [route, session, student]);
 
   function navigate(nextRoute) {
     const normalized = normalizeRoute(nextRoute);
@@ -94,9 +101,9 @@ export default function App() {
   const safeSession = getStoredAuthSession();
 
   const protectedRoute = !PUBLIC_ROUTES.has(route);
-  const requiresAdmin = route === 'admin';
+  const requiresAdmin = route === 'admin' || route.startsWith('admin-respostas/');
   const canUseProtected = Boolean(safeSession && student);
-  const activeRoute = route === 'acesso' ? 'acesso' : route;
+  const activeRoute = route === 'acesso' ? 'acesso' : route.startsWith('admin-respostas/') ? 'admin' : route;
 
   let content;
 
@@ -150,6 +157,11 @@ export default function App() {
 
 function renderRoute(props) {
   const { route } = props;
+
+  if (route.startsWith('admin-respostas/')) {
+    const activityId = decodeURIComponent(route.replace('admin-respostas/', ''));
+    return <AdminResponses activityId={activityId} navigate={props.navigate} />;
+  }
 
   switch (route) {
     case 'home':

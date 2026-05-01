@@ -1,7 +1,6 @@
 import { APP_CONFIG } from '../config.js';
 import { load, remove, save } from './storage.js';
-
-let supabaseClientPromise = null;
+import { getSupabaseClient } from './supabaseClient.js';
 
 export class AccountAlreadyExistsError extends Error {
   constructor(email) {
@@ -26,22 +25,6 @@ function isDuplicateSupabaseError(error) {
   );
 }
 
-
-function hasSupabaseConfig() {
-  return Boolean(APP_CONFIG.supabase.url?.trim() && APP_CONFIG.supabase.anonKey?.trim());
-}
-
-async function getSupabaseClient() {
-  if (!hasSupabaseConfig()) return null;
-
-  if (!supabaseClientPromise) {
-    supabaseClientPromise = import('@supabase/supabase-js').then(({ createClient }) =>
-      createClient(APP_CONFIG.supabase.url, APP_CONFIG.supabase.anonKey)
-    );
-  }
-
-  return supabaseClientPromise;
-}
 
 export function isAdminEmail(email = '') {
   const normalizedEmail = email.trim().toLowerCase();

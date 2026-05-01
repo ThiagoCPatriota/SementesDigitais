@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { APP_CONFIG } from '../config.js';
 import { Icon } from '../components/Icon.jsx';
 import { getCurrentAttempt, startAttempt } from '../services/examService.js';
@@ -13,6 +13,7 @@ import {
   restoreClassActivityResult,
   restorePersonalActivityAttempt,
   restorePersonalActivityResult,
+  syncDashboardDataFromCloud,
   updatePersonalActivity
 } from '../services/activityService.js';
 
@@ -30,15 +31,34 @@ export function Activities({ student, session, config, navigate, showToast, refr
     [isAdmin, refreshKey]
   );
 
+
   const personalActivities = useMemo(
     () => getPersonalActivities(student.email),
     [student.email, refreshKey]
   );
 
+
   const latestPublishedId = useMemo(
     () => getPublishedActivities()[0]?.id ?? null,
     [refreshKey]
   );
+
+
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncCloudData() {
+      await syncDashboardDataFromCloud(student.email);
+      if (isMounted) setRefreshKey((current) => current + 1);
+    }
+
+    syncCloudData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [student.email]);
 
   function updatePersonalForm(event) {
     const { name, value } = event.target;
@@ -115,7 +135,9 @@ export function Activities({ student, session, config, navigate, showToast, refr
       questionCount,
       durationMinutes,
       ownerEmail: student.email,
-      classCode: config.classCode
+      classCode: config.classCode,
+      sourceMode: config.sourceMode || 'enem-dev',
+      examYear: config.examYear || 'mixed'
     });
 
     const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });

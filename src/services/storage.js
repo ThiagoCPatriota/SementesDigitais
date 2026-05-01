@@ -25,4 +25,5 @@ export function clearAttemptData() {
   remove('answers');
   remove('essay');
   remove('result');
+  remove('attemptQuestions');
 }
