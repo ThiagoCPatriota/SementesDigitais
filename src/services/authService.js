@@ -3,6 +3,30 @@ import { load, remove, save } from './storage.js';
 
 let supabaseClientPromise = null;
 
+export class AccountAlreadyExistsError extends Error {
+  constructor(email) {
+    super('Já existe uma conta cadastrada com este e-mail. Entre pela aba Login.');
+    this.name = 'AccountAlreadyExistsError';
+    this.code = 'ACCOUNT_ALREADY_EXISTS';
+    this.email = email;
+  }
+}
+
+export function isAccountAlreadyExistsError(error) {
+  return error?.code === 'ACCOUNT_ALREADY_EXISTS' || error?.name === 'AccountAlreadyExistsError';
+}
+
+function isDuplicateSupabaseError(error) {
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    message.includes('already registered') ||
+    message.includes('already been registered') ||
+    message.includes('user already registered') ||
+    message.includes('already exists')
+  );
+}
+
+
 function hasSupabaseConfig() {
   return Boolean(APP_CONFIG.supabase.url?.trim() && APP_CONFIG.supabase.anonKey?.trim());
 }
@@ -71,6 +95,7 @@ export function isCurrentAdmin() {
 }
 
 export async function registerStudentAccount({ name, email, phone, classGroup, password }) {
+  const normalizedEmail = email.trim().toLowerCase();
   const supabase = await getSupabaseClient();
 
   if (supabase) {
@@ -87,7 +112,14 @@ export async function registerStudentAccount({ name, email, phone, classGroup, p
       }
     });
 
-    if (error) throw new Error(error.message);
+    if (error) {
+      if (isDuplicateSupabaseError(error)) throw new AccountAlreadyExistsError(email);
+      throw new Error(error.message);
+    }
+
+    if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      throw new AccountAlreadyExistsError(email);
+    }
 
     return {
       provider: 'supabase',
@@ -101,6 +133,11 @@ export async function registerStudentAccount({ name, email, phone, classGroup, p
         authUserId: data?.user?.id ?? null
       }
     };
+  }
+
+  const existingLocalAccount = load('studentAccount', null);
+  if (existingLocalAccount?.email?.toLowerCase() === normalizedEmail) {
+    throw new AccountAlreadyExistsError(email);
   }
 
   const localAccount = {

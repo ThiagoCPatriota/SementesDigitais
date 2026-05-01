@@ -1429,3 +1429,307 @@ button.account-subnav__item {
     grid-template-columns: 1fr;
   }
 }
+
+
+/* v12 — Cards institucionais de acesso e destaques rápidos da home */
+.access-info-card {
+  display: grid;
+  gap: 0.85rem;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.94), rgba(251, 253, 249, 0.9)),
+    radial-gradient(circle at 90% 10%, rgba(31, 138, 91, 0.12), transparent 14rem);
+}
+
+.access-info-card__icon-wrap {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, var(--primary-soft), #fff6df);
+  color: var(--primary-dark);
+}
+
+.access-info-card__icon,
+.hero-card__positive-grid span::before {
+  flex: 0 0 auto;
+}
+
+.access-info-card__icon svg {
+  width: 1.85rem;
+  height: 1.85rem;
+}
+
+.access-info-card__icon svg path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.access-info-card h2 {
+  margin: 0;
+  font-size: clamp(1.65rem, 3vw, 2.15rem);
+  letter-spacing: -0.04em;
+}
+
+.access-info-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.access-benefits,
+.hero-card__positive-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.access-benefits span,
+.hero-card__positive-grid span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55rem 0.72rem;
+  border: 1px solid rgba(31, 138, 91, 0.13);
+  border-radius: 999px;
+  background: rgba(236, 248, 239, 0.76);
+  color: var(--primary-dark);
+  font-size: 0.88rem;
+  font-weight: 850;
+}
+
+.access-benefits span::before,
+.hero-card__positive-grid span::before {
+  content: '';
+  width: 0.44rem;
+  height: 0.44rem;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.hero-card__positive-grid {
+  margin-top: 0.9rem;
+}
+
+.hero-card__positive-grid span {
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* v13 — ajustes finos em conta e home */
+.badge--soft-success {
+  background: rgba(31, 138, 91, 0.12);
+  color: var(--primary-dark);
+}
+
+.account-layout {
+  align-items: stretch;
+}
+
+.account-profile-card {
+  min-height: 100%;
+}
+
+.account-menu-card {
+  display: grid;
+  gap: 1rem;
+  min-height: 100%;
+  padding: 1.8rem;
+  border: 1px solid rgba(214, 86, 86, 0.12);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 248, 248, 0.94)),
+    radial-gradient(circle at top right, rgba(214, 86, 86, 0.08), transparent 10rem);
+  box-shadow: 0 20px 45px rgba(26, 46, 40, 0.08);
+}
+
+.account-menu-card__header {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.account-menu-card__header h2 {
+  margin: 0;
+}
+
+.account-menu-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+/* v14 — painel admin de simulados e respostas */
+.activity-card--latest,
+.admin-activity-card--latest {
+  border-color: rgba(31, 138, 91, 0.34);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(239, 250, 243, 0.92)),
+    radial-gradient(circle at top right, rgba(31, 138, 91, 0.12), transparent 12rem);
+}
+
+.activity-card--latest {
+  box-shadow: 0 20px 42px rgba(31, 138, 91, 0.14);
+}
+
+.admin-summary-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(251, 253, 249, 0.92)),
+    radial-gradient(circle at top right, rgba(242, 184, 75, 0.12), transparent 12rem);
+}
+
+.admin-activity-list--cards {
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  display: grid;
+}
+
+.admin-activity-card {
+  align-items: stretch;
+  border-radius: 24px;
+}
+
+.admin-activity-card__main {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-activity-card__mini-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+
+.admin-activity-card__mini-stats span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid rgba(31, 138, 91, 0.13);
+  border-radius: 999px;
+  background: rgba(236, 248, 239, 0.72);
+  color: var(--primary-dark);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.admin-responses-section {
+  margin-top: 1.5rem;
+}
+
+.admin-response-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.admin-response-card {
+  display: grid;
+  gap: 1rem;
+  border-radius: 24px;
+}
+
+.admin-response-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-response-card__top h3 {
+  margin: 0.55rem 0 0.25rem;
+  font-size: 1.35rem;
+  letter-spacing: -0.03em;
+}
+
+.admin-response-card__top p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.admin-response-card__score {
+  display: grid;
+  place-items: center;
+  min-width: 74px;
+  min-height: 74px;
+  border: 10px solid var(--primary-soft);
+  border-radius: 999px;
+  background: white;
+  color: var(--primary-dark);
+  font-size: 1.1rem;
+}
+
+.admin-response-card__info {
+  margin-top: 0;
+}
+
+.admin-response-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.admin-response-metrics span {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fbfdf9;
+  color: var(--muted);
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.admin-response-metrics strong {
+  color: var(--text);
+  font-size: 1.2rem;
+}
+
+@media (max-width: 720px) {
+  .admin-response-card__top {
+    flex-direction: column;
+  }
+
+  .admin-response-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* v15 — correções de tentativa única, respostas e métricas */
+.admin-activity-card--selected {
+  outline: 3px solid rgba(242, 184, 75, 0.36);
+  border-color: rgba(242, 184, 75, 0.65);
+}
+
+.admin-response-card {
+  min-width: 0;
+}
+
+.admin-response-metrics {
+  grid-template-columns: repeat(4, minmax(72px, 1fr));
+}
+
+.admin-response-metrics span {
+  min-width: 0;
+  padding: 0.65rem 0.45rem;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.2;
+}
+
+.admin-response-metrics strong {
+  display: block;
+  width: 100%;
+  line-height: 1;
+}
+
+@media (max-width: 1180px) {
+  .admin-response-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

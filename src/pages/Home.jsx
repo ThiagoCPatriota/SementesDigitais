@@ -27,7 +27,7 @@ export function Home({ config, navigate }) {
         <aside className="hero-card hero-card--exam">
           <div className="hero-card__top">
             <Icon name="books" className="hero-card__icon" />
-            <span className="badge">Simulado disponível</span>
+            <span className="badge">Simulado Exemplo</span>
           </div>
           <div>
             <span className="eyebrow">Atividade atual</span>

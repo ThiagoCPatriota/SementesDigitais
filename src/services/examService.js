@@ -1,7 +1,13 @@
 import { APP_CONFIG } from '../config.js';
 import { mockQuestions } from '../data/mockQuestions.js';
 import { clearAttemptData, load, save } from './storage.js';
-import { markPersonalActivityFinished } from './activityService.js';
+import {
+  markPersonalActivityFinished,
+  recordClassActivityStart,
+  updateClassActivityAttemptProgress,
+  updateClassActivityAttemptResult,
+  updatePersonalActivityProgress
+} from './activityService.js';
 
 export function getExamConfig() {
   return load('examConfig', {
@@ -60,6 +66,11 @@ export function startAttempt(student, activityConfig = {}) {
   save('attempt', attempt);
   save('answers', {});
   save('result', null);
+
+  if (attempt.activityType === 'turma' && attempt.activityId) {
+    recordClassActivityStart(config, attempt);
+  }
+
   return attempt;
 }
 
@@ -78,6 +89,16 @@ export function saveAnswer(questionId, letter) {
     answeredAt: new Date().toISOString()
   };
   save('answers', answers);
+
+  const attempt = getCurrentAttempt();
+  if (attempt?.activityType === 'turma') {
+    updateClassActivityAttemptProgress(attempt, answers);
+  }
+
+  if (attempt?.activityType === 'pessoal') {
+    updatePersonalActivityProgress(attempt, answers);
+  }
+
   return answers;
 }
 
@@ -114,7 +135,11 @@ export function finalizeAttempt(reason = 'manual') {
   save('result', result);
 
   if (finalizedAttempt.activityType === 'pessoal' && finalizedAttempt.activityId) {
-    markPersonalActivityFinished(finalizedAttempt.activityId, result, finalizedAttempt);
+    markPersonalActivityFinished(finalizedAttempt.activityId, result, finalizedAttempt, answers);
+  }
+
+  if (finalizedAttempt.activityType === 'turma' && finalizedAttempt.activityId) {
+    updateClassActivityAttemptResult(finalizedAttempt, result, answers);
   }
 
   return result;
