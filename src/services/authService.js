@@ -25,6 +25,20 @@ function isDuplicateSupabaseError(error) {
   );
 }
 
+async function resolveSupabaseRole(supabase, email, user) {
+  const metadata = user?.user_metadata ?? {};
+  const metadataRole = user?.app_metadata?.role || metadata.role;
+
+  try {
+    const { data, error } = await supabase.rpc('get_current_sdu_role');
+    if (!error && data) return normalizeRole(data, email);
+  } catch (error) {
+    // Se a função SQL ainda não existir, o app continua funcionando pelo fallback abaixo.
+  }
+
+  return normalizeRole(metadataRole, email);
+}
+
 
 export function isAdminEmail(email = '') {
   const normalizedEmail = email.trim().toLowerCase();
@@ -104,9 +118,11 @@ export async function registerStudentAccount({ name, email, phone, classGroup, p
       throw new AccountAlreadyExistsError(email);
     }
 
+    const resolvedRole = data?.session ? await resolveSupabaseRole(supabase, normalizedEmail, data?.user) : normalizeRole(data?.user?.user_metadata?.role, normalizedEmail);
+
     return {
       provider: 'supabase',
-      role: 'student',
+      role: resolvedRole,
       needsEmailConfirmation: Boolean(data?.user && !data?.session),
       student: {
         name,
@@ -150,7 +166,7 @@ export async function loginStudentAccount({ email, password }) {
     if (error) throw new Error(error.message);
 
     const metadata = data?.user?.user_metadata ?? {};
-    const role = normalizeRole(data?.user?.app_metadata?.role || metadata.role, email);
+    const role = await resolveSupabaseRole(supabase, email, data?.user);
 
     return {
       provider: 'supabase',
