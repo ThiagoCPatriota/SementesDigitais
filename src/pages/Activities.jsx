@@ -120,8 +120,8 @@ export function Activities({ student, session, config, navigate, showToast, refr
       return;
     }
 
-    if (questionCount < 1 || questionCount > 60) {
-      showToast('Informe uma quantidade entre 1 e 60 questões.', 'error');
+    if (questionCount < 1 || questionCount > 90) {
+      showToast('Informe uma quantidade entre 1 e 90 questões.', 'error');
       return;
     }
 
@@ -340,7 +340,7 @@ export function Activities({ student, session, config, navigate, showToast, refr
               <div className="form-grid form-grid--compact">
                 <label>
                   Questões
-                  <input type="number" min="1" max="60" name="questionCount" value={personalForm.questionCount} onChange={updatePersonalForm} required />
+                  <input type="number" min="1" max="90" name="questionCount" value={personalForm.questionCount} onChange={updatePersonalForm} required />
                 </label>
                 <label>
                   Tempo

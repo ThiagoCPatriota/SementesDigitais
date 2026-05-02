@@ -1,13 +1,25 @@
 -- Sementes Digitais — tabelas principais para persistir simulados e respostas no Supabase
--- Antes de rodar em produção: troque o e-mail abaixo pelo e-mail real do administrador.
+-- Antes de rodar em produção: troque os e-mails abaixo pelos e-mails reais dos administradores.
 
 create or replace function public.is_sdu_admin()
 returns boolean
 language sql
 stable
 as $$
-  select lower(coalesce(auth.jwt() ->> 'email', '')) in ('professor@sementesdigitais.com');
+  select lower(coalesce(auth.jwt() ->> 'email', '')) in (
+    'professor@sementesdigitais.com'
+  );
 $$;
+
+create or replace function public.get_current_sdu_role()
+returns text
+language sql
+stable
+as $$
+  select case when public.is_sdu_admin() then 'admin' else 'student' end;
+$$;
+
+grant execute on function public.get_current_sdu_role() to authenticated;
 
 create table if not exists public.class_activities (
   id text primary key,
@@ -18,6 +30,7 @@ create table if not exists public.class_activities (
   source_mode text not null default 'enem-dev',
   exam_year text not null default 'mixed',
   requires_language_choice boolean not null default true,
+  area_distribution jsonb not null default '{}'::jsonb,
   question_seed bigint not null default extract(epoch from now())::bigint,
   questions_snapshot jsonb not null default '[]'::jsonb,
   activity_type text not null default 'turma',
@@ -63,6 +76,7 @@ create table if not exists public.personal_activities (
   source_mode text not null default 'enem-dev',
   exam_year text not null default 'mixed',
   requires_language_choice boolean not null default true,
+  area_distribution jsonb not null default '{}'::jsonb,
   question_seed bigint not null default extract(epoch from now())::bigint,
   questions_snapshot jsonb not null default '[]'::jsonb,
   activity_type text not null default 'pessoal',

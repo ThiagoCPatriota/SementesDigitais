@@ -31,7 +31,7 @@ export const APP_CONFIG = {
   personalActivity: {
     title: 'Prática pessoal ENEM',
     durationMinutes: 60,
-    questionCount: 20
+    questionCount: 30
   },
   activities: {
     emptyStudentMessage: 'Nenhuma atividade da turma foi publicada ainda. Você pode criar uma prática pessoal enquanto aguarda a equipe.'

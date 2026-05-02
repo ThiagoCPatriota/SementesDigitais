@@ -128,6 +128,7 @@ function activityToRow(activity) {
     source_mode: activity.sourceMode || 'enem-dev',
     exam_year: String(activity.examYear || 'mixed'),
     requires_language_choice: activity.requiresLanguageChoice !== false,
+    area_distribution: normalizeJsonObject(activity.areaDistribution),
     question_seed: normalizeSeed(activity.questionSeed),
     questions_snapshot: Array.isArray(activity.questionsSnapshot) ? activity.questionsSnapshot : [],
     activity_type: activity.activityType || 'turma',
@@ -147,6 +148,7 @@ function activityFromRow(row) {
     sourceMode: row.source_mode || 'enem-dev',
     examYear: row.exam_year || 'mixed',
     requiresLanguageChoice: row.requires_language_choice !== false,
+    areaDistribution: normalizeJsonObject(row.area_distribution),
     questionSeed: row.question_seed || Date.now(),
     questionsSnapshot: Array.isArray(row.questions_snapshot) ? row.questions_snapshot : [],
     activityType: row.activity_type || 'turma',
@@ -224,6 +226,7 @@ function personalActivityToRow(activity) {
     source_mode: activity.sourceMode || 'enem-dev',
     exam_year: String(activity.examYear || 'mixed'),
     requires_language_choice: activity.requiresLanguageChoice !== false,
+    area_distribution: normalizeJsonObject(activity.areaDistribution),
     question_seed: normalizeSeed(activity.questionSeed),
     questions_snapshot: Array.isArray(activity.questionsSnapshot) ? activity.questionsSnapshot : [],
     activity_type: activity.activityType || 'pessoal',
@@ -250,6 +253,7 @@ function personalActivityFromRow(row) {
     sourceMode: row.source_mode || 'enem-dev',
     examYear: row.exam_year || 'mixed',
     requiresLanguageChoice: row.requires_language_choice !== false,
+    areaDistribution: normalizeJsonObject(row.area_distribution),
     questionSeed: row.question_seed || Date.now(),
     questionsSnapshot: Array.isArray(row.questions_snapshot) ? row.questions_snapshot : [],
     activityType: row.activity_type || 'pessoal',
@@ -263,6 +267,11 @@ function personalActivityFromRow(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
+}
+
+function normalizeJsonObject(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return value;
 }
 
 function normalizeSeed(value) {

@@ -332,6 +332,7 @@ function normalizeClassActivity(data) {
     sourceMode: data.sourceMode || 'enem-dev',
     examYear: data.examYear || 'mixed',
     requiresLanguageChoice: (data.sourceMode || 'enem-dev') === 'enem-dev' ? data.requiresLanguageChoice !== false : false,
+    areaDistribution: normalizeAreaDistribution(data.areaDistribution),
     questionSeed: data.questionSeed || Date.now(),
     questionsSnapshot: Array.isArray(data.questionsSnapshot) ? data.questionsSnapshot : [],
     activityType: 'turma',
@@ -355,6 +356,7 @@ function normalizePersonalActivity(data) {
     sourceMode: data.sourceMode || 'enem-dev',
     examYear: data.examYear || 'mixed',
     requiresLanguageChoice: (data.sourceMode || 'enem-dev') === 'enem-dev' ? data.requiresLanguageChoice !== false : false,
+    areaDistribution: normalizeAreaDistribution(data.areaDistribution),
     questionSeed: data.questionSeed || Date.now(),
     questionsSnapshot: Array.isArray(data.questionsSnapshot) ? data.questionsSnapshot : [],
     activityType: 'pessoal',
@@ -368,6 +370,16 @@ function normalizePersonalActivity(data) {
     attemptSnapshot: null,
     answersSnapshot: {}
   };
+}
+
+function normalizeAreaDistribution(distribution = {}) {
+  if (!distribution || typeof distribution !== 'object') return {};
+
+  return Object.entries(distribution).reduce((accumulator, [key, value]) => {
+    const number = Math.max(0, Math.trunc(Number(value) || 0));
+    if (number > 0) accumulator[key] = number;
+    return accumulator;
+  }, {});
 }
 
 function getPersonalActivitiesKey(ownerEmail = '') {
