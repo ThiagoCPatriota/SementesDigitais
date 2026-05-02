@@ -10,6 +10,7 @@ import {
 export function Admin({ showToast, navigate }) {
   const [activities, setActivities] = useState(() => getActivities());
   const [syncing, setSyncing] = useState(false);
+  const [updatingActivityId, setUpdatingActivityId] = useState('');
 
   const publishedCount = activities.filter((activity) => activity.status === 'published').length;
   const finishedCount = activities.reduce((total, activity) => (
@@ -34,10 +35,18 @@ export function Admin({ showToast, navigate }) {
     };
   }, []);
 
-  function handleStatusChange(activityId, status) {
-    const updated = updateActivityStatus(activityId, status);
-    setActivities(updated);
-    showToast(status === 'published' ? 'Atividade publicada para os alunos.' : 'Atividade ocultada dos alunos.');
+  async function handleStatusChange(activityId, status) {
+    setUpdatingActivityId(activityId);
+
+    try {
+      const updated = await updateActivityStatus(activityId, status);
+      setActivities(updated);
+      showToast(status === 'published' ? 'Atividade publicada no Supabase.' : 'Atividade ocultada no Supabase.');
+    } catch (error) {
+      showToast(error?.message || 'Não foi possível atualizar o simulado no Supabase.', 'error');
+    } finally {
+      setUpdatingActivityId('');
+    }
   }
 
   function openResponses(activityId) {
@@ -107,9 +116,9 @@ export function Admin({ showToast, navigate }) {
                   <div className="admin-activity-card__actions">
                     <button className="button button--ghost button--compact" type="button" onClick={() => openResponses(activity.id)}>Ver respostas</button>
                     {activity.status === 'published' ? (
-                      <button className="button button--ghost button--compact" type="button" onClick={() => handleStatusChange(activity.id, 'draft')}>Ocultar</button>
+                      <button className="button button--ghost button--compact" type="button" disabled={updatingActivityId === activity.id} onClick={() => handleStatusChange(activity.id, 'draft')}>{updatingActivityId === activity.id ? 'Salvando...' : 'Ocultar'}</button>
                     ) : (
-                      <button className="button button--primary button--compact" type="button" onClick={() => handleStatusChange(activity.id, 'published')}>Publicar</button>
+                      <button className="button button--primary button--compact" type="button" disabled={updatingActivityId === activity.id} onClick={() => handleStatusChange(activity.id, 'published')}>{updatingActivityId === activity.id ? 'Salvando...' : 'Publicar'}</button>
                     )}
                   </div>
                 </article>

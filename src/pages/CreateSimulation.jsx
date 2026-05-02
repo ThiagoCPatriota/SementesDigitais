@@ -20,6 +20,7 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
     areaDistribution: areaDistributionToForm(config.areaDistribution),
     publishNow: true
   }));
+  const [isSaving, setIsSaving] = useState(false);
 
   const questionCount = Number(form.questionCount || 0);
   const allocatedTotal = useMemo(() => sumAreaDistribution(form.areaDistribution), [form.areaDistribution]);
@@ -50,7 +51,7 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
     setForm((current) => ({ ...current, areaDistribution: { ...DEFAULT_AREA_FORM } }));
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     const normalizedQuestionCount = Number(form.questionCount);
@@ -71,23 +72,32 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
       return;
     }
 
-    const activity = createActivity({
-      ...form,
-      questionCount: normalizedQuestionCount,
-      durationMinutes: normalizedDuration,
-      areaDistribution: cleanAreaDistribution(form.areaDistribution),
-      status: form.publishNow ? 'published' : 'draft'
-    });
+    setIsSaving(true);
 
-    const updatedConfig = saveExamConfig(activity);
-    onConfigSaved(updatedConfig);
-    showToast(activity.status === 'published' ? 'Simulado criado e publicado para os alunos.' : 'Simulado criado como rascunho.');
-    setForm((current) => ({
-      ...current,
-      title: '',
-      publishNow: true,
-      questionSeed: Date.now()
-    }));
+    try {
+      const activity = await createActivity({
+        ...form,
+        questionCount: normalizedQuestionCount,
+        durationMinutes: normalizedDuration,
+        areaDistribution: cleanAreaDistribution(form.areaDistribution),
+        status: form.publishNow ? 'published' : 'draft'
+      });
+
+      const updatedConfig = saveExamConfig(activity);
+      onConfigSaved(updatedConfig);
+      showToast(activity.status === 'published' ? 'Simulado criado e publicado no Supabase.' : 'Simulado criado como rascunho no Supabase.');
+      setForm((current) => ({
+        ...current,
+        title: '',
+        publishNow: true,
+        questionSeed: Date.now()
+      }));
+      navigate('admin');
+    } catch (error) {
+      showToast(error?.message || 'Não foi possível salvar o simulado no Supabase.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -185,7 +195,7 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
             <span>Publicar atividade para os alunos assim que salvar.</span>
           </label>
 
-          <button className="button button--primary button--full" type="submit">Criar simulado</button>
+          <button className="button button--primary button--full" type="submit" disabled={isSaving}>{isSaving ? 'Salvando no Supabase...' : 'Criar simulado'}</button>
         </form>
 
         <aside className="panel side-note create-simulation-note">

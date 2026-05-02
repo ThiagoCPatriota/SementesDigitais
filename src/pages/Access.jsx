@@ -54,9 +54,16 @@ export function Access({ config, onAuthenticated, showToast }) {
         classGroup: data.classGroup.trim(),
         password: data.password
       });
+      if (authResult.needsEmailConfirmation) {
+        resetAccessForms();
+        setTab('login');
+        showToast('Conta criada. Confirme o e-mail, se o Supabase pedir, e entre pela aba Login para ativar a sessão.');
+        return;
+      }
+
       const session = persistAuthenticatedAccess(authResult, { classCode: data.classCode.trim().toUpperCase(), terms: data.terms });
       resetAccessForms();
-      showToast(authResult.needsEmailConfirmation ? 'Conta criada. Verifique seu e-mail, se a confirmação estiver ativa.' : 'Conta criada com sucesso.');
+      showToast('Conta criada com sucesso.');
       onAuthenticated(session, 'atividades');
     } catch (error) {
       if (isAccountAlreadyExistsError(error)) {

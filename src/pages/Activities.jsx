@@ -109,7 +109,7 @@ export function Activities({ student, session, config, navigate, showToast, refr
     navigate('resultado');
   }
 
-  function createAndStartPersonalActivity(event) {
+  async function createAndStartPersonalActivity(event) {
     event.preventDefault();
 
     const questionCount = Number(personalForm.questionCount);
@@ -130,34 +130,38 @@ export function Activities({ student, session, config, navigate, showToast, refr
       return;
     }
 
-    const activity = createPersonalActivity({
-      ...personalForm,
-      questionCount,
-      durationMinutes,
-      ownerEmail: student.email,
-      classCode: config.classCode,
-      sourceMode: config.sourceMode || 'enem-dev',
-      examYear: config.examYear || 'mixed'
-    });
+    try {
+      const activity = await createPersonalActivity({
+        ...personalForm,
+        questionCount,
+        durationMinutes,
+        ownerEmail: student.email,
+        classCode: config.classCode,
+        sourceMode: config.sourceMode || 'enem-dev',
+        examYear: config.examYear || 'mixed'
+      });
 
-    const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
-    updatePersonalActivity(student.email, activity.id, {
-      status: 'in_progress',
-      attemptId: attempt.id,
-      startedAt: attempt.startedAt,
-      deadlineAt: attempt.deadlineAt,
-      attemptSnapshot: attempt,
-      answersSnapshot: {}
-    });
+      const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
+      await updatePersonalActivity(student.email, activity.id, {
+        status: 'in_progress',
+        attemptId: attempt.id,
+        startedAt: attempt.startedAt,
+        deadlineAt: attempt.deadlineAt,
+        attemptSnapshot: attempt,
+        answersSnapshot: {}
+      });
 
-    refreshAttempt();
-    refreshResult?.();
-    setRefreshKey((current) => current + 1);
-    showToast('Atividade pessoal criada. Boa prática!');
-    navigate('prova');
+      refreshAttempt();
+      refreshResult?.();
+      setRefreshKey((current) => current + 1);
+      showToast('Atividade pessoal criada e salva no Supabase. Boa prática!');
+      navigate('prova');
+    } catch (error) {
+      showToast(error?.message || 'Não foi possível criar a atividade pessoal no Supabase.', 'error');
+    }
   }
 
-  function continuePersonalActivity(activity) {
+  async function continuePersonalActivity(activity) {
     const expired = isActivityExpired(activity);
 
     if (expired) {
@@ -168,7 +172,7 @@ export function Activities({ student, session, config, navigate, showToast, refr
         return;
       }
 
-      updatePersonalActivity(student.email, activity.id, { status: 'finished', finishedAt: new Date().toISOString() });
+      await updatePersonalActivity(student.email, activity.id, { status: 'finished', finishedAt: new Date().toISOString() });
       setRefreshKey((current) => current + 1);
       showToast('Essa atividade já foi encerrada.', 'error');
       return;
@@ -190,20 +194,24 @@ export function Activities({ student, session, config, navigate, showToast, refr
       return;
     }
 
-    const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
-    updatePersonalActivity(student.email, activity.id, {
-      status: 'in_progress',
-      attemptId: attempt.id,
-      startedAt: attempt.startedAt,
-      deadlineAt: attempt.deadlineAt,
-      attemptSnapshot: attempt,
-      answersSnapshot: {}
-    });
+    try {
+      const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
+      await updatePersonalActivity(student.email, activity.id, {
+        status: 'in_progress',
+        attemptId: attempt.id,
+        startedAt: attempt.startedAt,
+        deadlineAt: attempt.deadlineAt,
+        attemptSnapshot: attempt,
+        answersSnapshot: {}
+      });
 
-    refreshAttempt();
-    refreshResult?.();
-    setRefreshKey((current) => current + 1);
-    navigate('prova');
+      refreshAttempt();
+      refreshResult?.();
+      setRefreshKey((current) => current + 1);
+      navigate('prova');
+    } catch (error) {
+      showToast(error?.message || 'Não foi possível atualizar a atividade pessoal no Supabase.', 'error');
+    }
   }
 
   function viewPersonalResult(activity) {

@@ -65,23 +65,31 @@ export function getPublishedActivities() {
   return getActivities().filter((activity) => activity.status === 'published');
 }
 
-export function createActivity(data) {
+export async function createActivity(data) {
   const activity = normalizeClassActivity(data);
+
+  if (isCloudDataEnabled()) {
+    await upsertCloudActivity(activity);
+  }
+
   const activities = [activity, ...getActivities().filter((item) => item.id !== activity.id)];
   save(CLASS_ACTIVITIES_KEY, activities);
-  mirrorToCloud(upsertCloudActivity(activity));
   return activity;
 }
 
-export function updateActivityStatus(activityId, status) {
+export async function updateActivityStatus(activityId, status) {
   const normalizedStatus = status === 'draft' ? 'draft' : 'published';
+
+  if (isCloudDataEnabled()) {
+    await updateCloudActivityStatus(activityId, normalizedStatus);
+  }
+
   const activities = getActivities().map((activity) =>
     activity.id === activityId
       ? { ...activity, status: normalizedStatus, updatedAt: new Date().toISOString() }
       : activity
   );
   save(CLASS_ACTIVITIES_KEY, activities);
-  mirrorToCloud(updateCloudActivityStatus(activityId, normalizedStatus));
   return sortByDateDesc(activities);
 }
 
@@ -248,23 +256,31 @@ export function getPersonalActivities(ownerEmail) {
   return Array.isArray(activities) ? sortByDateDesc(activities) : [];
 }
 
-export function createPersonalActivity(data) {
+export async function createPersonalActivity(data) {
   const activity = normalizePersonalActivity(data);
+
+  if (isCloudDataEnabled()) {
+    await upsertCloudPersonalActivity(activity);
+  }
+
   const activities = [activity, ...getPersonalActivities(data.ownerEmail).filter((item) => item.id !== activity.id)];
   save(getPersonalActivitiesKey(data.ownerEmail), activities);
-  mirrorToCloud(upsertCloudPersonalActivity(activity));
   return activity;
 }
 
-export function updatePersonalActivity(ownerEmail, activityId, patch) {
+export async function updatePersonalActivity(ownerEmail, activityId, patch) {
   const activities = getPersonalActivities(ownerEmail).map((activity) =>
     activity.id === activityId
       ? { ...activity, ...patch, updatedAt: new Date().toISOString() }
       : activity
   );
-  save(getPersonalActivitiesKey(ownerEmail), activities);
   const updatedActivity = activities.find((activity) => activity.id === activityId) ?? null;
-  if (updatedActivity) mirrorToCloud(upsertCloudPersonalActivity(updatedActivity));
+
+  if (updatedActivity && isCloudDataEnabled()) {
+    await upsertCloudPersonalActivity(updatedActivity);
+  }
+
+  save(getPersonalActivitiesKey(ownerEmail), activities);
   return updatedActivity;
 }
 
@@ -280,6 +296,9 @@ export function updatePersonalActivityProgress(attempt, answersSnapshot = {}) {
     deadlineAt: attempt.deadlineAt,
     attemptSnapshot: attempt,
     answersSnapshot
+  }).catch((error) => {
+    console.warn('Não foi possível sincronizar progresso da atividade pessoal com o Supabase.', error);
+    return null;
   });
 }
 
@@ -293,6 +312,9 @@ export function markPersonalActivityFinished(activityId, result, attempt, answer
     result,
     answersSnapshot,
     attemptSnapshot: { ...attempt, submittedAt: result.finalizedAt, status: result.reason === 'expired' ? 'expirada' : 'finalizada' }
+  }).catch((error) => {
+    console.warn('Não foi possível sincronizar resultado da atividade pessoal com o Supabase.', error);
+    return null;
   });
 }
 

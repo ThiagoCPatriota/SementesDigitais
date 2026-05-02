@@ -11,7 +11,7 @@ export function isCloudDataEnabled() {
 }
 
 export async function fetchCloudActivities() {
-  return runCloudQuery(async (supabase) => {
+  return runCloudReadQuery(async (supabase) => {
     const { data, error } = await supabase
       .from(TABLES.classActivities)
       .select('*')
@@ -25,20 +25,20 @@ export async function fetchCloudActivities() {
 export async function upsertCloudActivity(activity) {
   if (!activity?.id) return false;
 
-  return runCloudQuery(async (supabase) => {
+  return runCloudWriteQuery(async (supabase) => {
     const { error } = await supabase
       .from(TABLES.classActivities)
       .upsert(activityToRow(activity), { onConflict: 'id' });
 
     if (error) throw error;
     return true;
-  }, false, 'salvar atividade no Supabase');
+  }, 'salvar atividade no Supabase');
 }
 
 export async function updateCloudActivityStatus(activityId, status) {
   if (!activityId) return false;
 
-  return runCloudQuery(async (supabase) => {
+  return runCloudWriteQuery(async (supabase) => {
     const { error } = await supabase
       .from(TABLES.classActivities)
       .update({ status, updated_at: new Date().toISOString() })
@@ -46,11 +46,11 @@ export async function updateCloudActivityStatus(activityId, status) {
 
     if (error) throw error;
     return true;
-  }, false, 'atualizar status da atividade no Supabase');
+  }, 'atualizar status da atividade no Supabase');
 }
 
 export async function fetchCloudActivityAttempts(activityId = '') {
-  return runCloudQuery(async (supabase) => {
+  return runCloudReadQuery(async (supabase) => {
     let query = supabase
       .from(TABLES.classAttempts)
       .select('*')
@@ -67,21 +67,21 @@ export async function fetchCloudActivityAttempts(activityId = '') {
 export async function upsertCloudActivityAttempt(record) {
   if (!record?.activityId || !record?.student?.email) return false;
 
-  return runCloudQuery(async (supabase) => {
+  return runCloudWriteQuery(async (supabase) => {
     const { error } = await supabase
       .from(TABLES.classAttempts)
       .upsert(attemptToRow(record), { onConflict: 'activity_id,student_email' });
 
     if (error) throw error;
     return true;
-  }, false, 'salvar tentativa no Supabase');
+  }, 'salvar tentativa/resposta no Supabase');
 }
 
 export async function fetchCloudPersonalActivities(ownerEmail) {
   const normalizedOwnerEmail = normalizeEmail(ownerEmail);
   if (!normalizedOwnerEmail) return null;
 
-  return runCloudQuery(async (supabase) => {
+  return runCloudReadQuery(async (supabase) => {
     const { data, error } = await supabase
       .from(TABLES.personalActivities)
       .select('*')
@@ -96,26 +96,68 @@ export async function fetchCloudPersonalActivities(ownerEmail) {
 export async function upsertCloudPersonalActivity(activity) {
   if (!activity?.id || !activity?.ownerEmail) return false;
 
-  return runCloudQuery(async (supabase) => {
+  return runCloudWriteQuery(async (supabase) => {
     const { error } = await supabase
       .from(TABLES.personalActivities)
       .upsert(personalActivityToRow(activity), { onConflict: 'id' });
 
     if (error) throw error;
     return true;
-  }, false, 'salvar atividade pessoal no Supabase');
+  }, 'salvar atividade pessoal no Supabase');
 }
 
-async function runCloudQuery(operation, fallback, label) {
+async function runCloudReadQuery(operation, fallback, label) {
   const supabase = await getSupabaseClient();
   if (!supabase) return fallback;
 
   try {
     return await operation(supabase);
   } catch (error) {
-    console.warn(`Falha ao ${label}. Usando cache local quando possível.`, error);
+    console.warn(`Falha ao ${label}. Cache local preservado.`, error);
     return fallback;
   }
+}
+
+async function runCloudWriteQuery(operation, label) {
+  const supabase = await getSupabaseClient();
+  if (!supabase) return false;
+
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) throw new Error(`Não foi possível validar a sessão do Supabase: ${sessionError.message}`);
+  if (!sessionData?.session) {
+    throw new Error('O Supabase está configurado, mas esta sessão ainda não está autenticada no Supabase. Faça logout, entre novamente e tente criar o simulado de novo.');
+  }
+
+  try {
+    return await operation(supabase);
+  } catch (error) {
+    console.error(`Falha ao ${label}.`, error);
+    throw new Error(formatSupabaseError(error, label));
+  }
+}
+
+function formatSupabaseError(error, label) {
+  const message = error?.message || String(error || 'erro desconhecido');
+  const code = error?.code ? ` Código: ${error.code}.` : '';
+  const lowerMessage = message.toLowerCase();
+
+  if (lowerMessage.includes('row-level security') || lowerMessage.includes('violates row-level security')) {
+    return `O Supabase recusou ${label} por regra de segurança (RLS). Confirme se o e-mail logado está cadastrado como administrador na tabela admin_users e se você executou o SQL de correção enviado.`;
+  }
+
+  if (lowerMessage.includes('permission denied') || lowerMessage.includes('not authorized')) {
+    return `Sem permissão para ${label}. Confirme se você está logado com uma conta administradora no Supabase.`;
+  }
+
+  if (lowerMessage.includes('relation') && lowerMessage.includes('does not exist')) {
+    return `A tabela necessária ainda não existe no Supabase. Execute o schema SQL atualizado antes de continuar.`;
+  }
+
+  if (lowerMessage.includes('column') && lowerMessage.includes('does not exist')) {
+    return `Existe uma coluna faltando no Supabase. Execute o SQL de atualização do schema antes de continuar.`;
+  }
+
+  return `Não foi possível ${label}.${code} Mensagem do Supabase: ${message}`;
 }
 
 function activityToRow(activity) {
