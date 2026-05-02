@@ -1,11 +1,15 @@
 import { APP_CONFIG } from '../config.js';
 import { Icon } from '../components/Icon.jsx';
+import { BrandLogo } from '../components/BrandLogo.jsx';
 
 export function Home({ config, navigate }) {
   return (
     <>
       <section className="hero hero--institutional">
         <div className="hero__content">
+          <div className="hero-brand-row">
+            <BrandLogo className="brand-logo--hero brand-logo--hero-mark" showText={false} />
+          </div>
           <span className="eyebrow">{APP_CONFIG.organization} apresenta</span>
           <h1>Simulados ENEM para o projeto <span>Sementes Digitais</span></h1>
           <p>

@@ -9,12 +9,17 @@ export const ENEM_LANGUAGE_OPTIONS = [
 const FOREIGN_LANGUAGE_QUESTION_COUNT = 5;
 const COMMON_QUESTIONS_START_OFFSET = 5;
 
-const AREA_LABELS = {
-  linguagens: 'Linguagens',
-  'ciencias-humanas': 'Ciências Humanas',
-  'ciencias-natureza': 'Ciências da Natureza',
-  matematica: 'Matemática'
-};
+export const ENEM_AREA_OPTIONS = [
+  { value: 'linguagens', label: 'Linguagens' },
+  { value: 'ciencias-humanas', label: 'Ciências Humanas' },
+  { value: 'ciencias-natureza', label: 'Ciências da Natureza' },
+  { value: 'matematica', label: 'Matemática' }
+];
+
+const AREA_LABELS = ENEM_AREA_OPTIONS.reduce((accumulator, area) => {
+  accumulator[area.value] = area.label;
+  return accumulator;
+}, {});
 
 /**
  * Adapter para a API enem.dev.
@@ -33,7 +38,8 @@ export async function fetchQuestionSetFromEnemDev({
   examYear = 'mixed',
   seed = Date.now(),
   language = 'ingles',
-  includeLanguageChoice = true
+  includeLanguageChoice = true,
+  areaDistribution = {}
 } = {}) {
   const count = clampNumber(questionCount, 1, 180);
   const normalizedSeed = normalizeSeed(seed);
@@ -44,6 +50,7 @@ export async function fetchQuestionSetFromEnemDev({
 
   const questions = [];
   const usedIds = new Set();
+  const normalizedAreaDistribution = normalizeAreaDistribution(areaDistribution, count);
 
   if (includeLanguageChoice) {
     const languageYear = years[0] || 2023;
@@ -59,6 +66,20 @@ export async function fetchQuestionSetFromEnemDev({
       languageLabel: getLanguageLabel(normalizedLanguage),
       isLanguageQuestion: true
     }, count));
+  }
+
+  if (hasAreaDistribution(normalizedAreaDistribution)) {
+    const areaQuestions = await fetchDistributedQuestions({
+      years,
+      areaDistribution: normalizedAreaDistribution,
+      seed: normalizedSeed,
+      language: normalizedLanguage,
+      usedIds,
+      alreadySelectedQuestions: questions,
+      limit: count
+    });
+
+    areaQuestions.forEach((question) => addQuestion(questions, usedIds, question, count));
   }
 
   const commonTarget = count - questions.length;
@@ -92,6 +113,32 @@ export function getLanguageLabel(value = 'ingles') {
   return normalizeLanguageChoice(value) === 'espanhol' ? 'Espanhol' : 'Inglês';
 }
 
+function normalizeAreaDistribution(distribution = {}, limit = 90) {
+  const normalized = {};
+  let total = 0;
+
+  ENEM_AREA_OPTIONS.forEach((area) => {
+    const value = Math.max(0, Math.trunc(Number(distribution?.[area.value] || 0)));
+    const available = Math.max(0, limit - total);
+    normalized[area.value] = Math.min(value, available);
+    total += normalized[area.value];
+  });
+
+  return normalized;
+}
+
+function hasAreaDistribution(distribution = {}) {
+  return Object.values(distribution || {}).some((value) => Number(value) > 0);
+}
+
+function countSelectedQuestionsByArea(questions = []) {
+  return questions.reduce((accumulator, question) => {
+    const area = question.discipline || '';
+    if (area) accumulator[area] = (accumulator[area] || 0) + 1;
+    return accumulator;
+  }, {});
+}
+
 async function fetchLanguageQuestions({ year, language, limit }) {
   const page = await fetchQuestionsPage({
     year,
@@ -108,6 +155,61 @@ async function fetchLanguageQuestions({ year, language, limit }) {
       languageLabel: getLanguageLabel(language),
       isLanguageQuestion: true
     }));
+}
+
+async function fetchDistributedQuestions({ years, areaDistribution, seed, language, usedIds, alreadySelectedQuestions, limit }) {
+  const questions = [];
+  const selectedByArea = countSelectedQuestionsByArea(alreadySelectedQuestions);
+
+  for (const area of ENEM_AREA_OPTIONS.map((item) => item.value)) {
+    const requestedForArea = Number(areaDistribution[area] || 0);
+    const alreadySelectedForArea = selectedByArea[area] || 0;
+    const target = Math.max(0, requestedForArea - alreadySelectedForArea);
+    if (!target) continue;
+
+    const areaQuestions = await fetchAreaQuestions({
+      years,
+      area,
+      count: Math.min(target, limit - alreadySelectedQuestions.length - questions.length),
+      seed,
+      language,
+      usedIds
+    });
+
+    areaQuestions.forEach((question) => {
+      if (questions.length + alreadySelectedQuestions.length >= limit) return;
+      questions.push(question);
+    });
+  }
+
+  return questions;
+}
+
+async function fetchAreaQuestions({ years, area, count, seed, language, usedIds }) {
+  const questions = [];
+  const localIds = new Set();
+  let cycle = 0;
+
+  while (questions.length < count && cycle < years.length * 10) {
+    const year = years[cycle % years.length];
+    const chunkSize = Math.min(Math.max((count - questions.length) * 6, 24), 45);
+    const baseOffset = seededInteger(seed + cycle * 211 + area.length * 17, COMMON_QUESTIONS_START_OFFSET, 135);
+    const offset = Math.max(COMMON_QUESTIONS_START_OFFSET, Math.min(baseOffset, 180 - chunkSize));
+    const page = await fetchQuestionsPage({ year, limit: chunkSize, offset, language });
+
+    page.questions.forEach((question) => {
+      if (questions.length >= count) return;
+      if (question.discipline !== area) return;
+      if (isForeignLanguageQuestion(question)) return;
+      if (usedIds.has(question.id) || localIds.has(question.id)) return;
+      localIds.add(question.id);
+      questions.push({ ...question, isLanguageQuestion: false });
+    });
+
+    cycle += 1;
+  }
+
+  return questions;
 }
 
 async function fetchCommonQuestions({ years, count, seed, language, usedIds }) {

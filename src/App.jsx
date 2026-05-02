@@ -6,6 +6,7 @@ import { Access } from './pages/Access.jsx';
 import { Account } from './pages/Account.jsx';
 import { Activities } from './pages/Activities.jsx';
 import { Admin } from './pages/Admin.jsx';
+import { CreateSimulation } from './pages/CreateSimulation.jsx';
 import { AdminResponses } from './pages/AdminResponses.jsx';
 import { Exam } from './pages/Exam.jsx';
 import { Result } from './pages/Result.jsx';
@@ -101,7 +102,7 @@ export default function App() {
   const safeSession = getStoredAuthSession();
 
   const protectedRoute = !PUBLIC_ROUTES.has(route);
-  const requiresAdmin = route === 'admin' || route.startsWith('admin-respostas/');
+  const requiresAdmin = route === 'admin' || route === 'criar-simulado' || route.startsWith('admin-respostas/');
   const canUseProtected = Boolean(safeSession && student);
   const activeRoute = route === 'acesso' ? 'acesso' : route.startsWith('admin-respostas/') ? 'admin' : route;
 
@@ -181,6 +182,8 @@ function renderRoute(props) {
       return <Result result={props.result} attempt={props.attempt} navigate={props.navigate} />;
     case 'admin':
       return <Admin config={props.config} onConfigSaved={props.onConfigSaved} showToast={props.showToast} navigate={props.navigate} />;
+    case 'criar-simulado':
+      return <CreateSimulation config={props.config} onConfigSaved={props.onConfigSaved} showToast={props.showToast} navigate={props.navigate} />;
     default:
       return <Home config={props.config} navigate={props.navigate} />;
   }

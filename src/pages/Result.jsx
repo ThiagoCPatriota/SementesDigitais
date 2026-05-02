@@ -20,8 +20,8 @@ export function Result({ result, attempt, navigate }) {
         <h1>{attempt.examTitle}</h1>
         <p>{attempt.student.name}, sua prova foi {attempt.status === 'expirada' ? 'encerrada pelo tempo' : 'finalizada manualmente'}.</p>
         <div className="score-circle" aria-label="Nota percentual">
-          <strong>{result.scorePercent}%</strong>
-          <span>aproveitamento</span>
+          <strong className="score-circle__value">{result.scorePercent}%</strong>
+          <span className="score-circle__label">aproveitamento</span>
         </div>
       </section>
 

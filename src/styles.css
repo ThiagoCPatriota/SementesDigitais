@@ -63,6 +63,53 @@ a {
   gap: 0.75rem;
 }
 
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+}
+
+.brand-logo__image {
+  display: block;
+  width: auto;
+  height: 46px;
+  object-fit: contain;
+}
+
+.brand-logo__text {
+  display: block;
+  min-width: 0;
+}
+
+.brand-logo__text strong,
+.brand-logo__text small {
+  display: block;
+}
+
+.brand-logo__text small {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.brand-logo--compact .brand-logo__image {
+  height: 42px;
+}
+
+.brand-logo--hero {
+  margin-bottom: 0.25rem;
+}
+
+.brand-logo--hero .brand-logo__image {
+  height: 58px;
+}
+
+.hero-brand-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
 .brand__mark {
   display: grid;
   place-items: center;
@@ -217,6 +264,13 @@ a {
 .button--ghost {
   background: var(--primary-soft);
   color: var(--primary-dark);
+}
+
+.button--compact {
+  min-height: 40px;
+  padding: 0.62rem 0.9rem;
+  font-size: 0.93rem;
+  box-shadow: none;
 }
 
 .button--danger {
@@ -617,31 +671,35 @@ textarea {
 }
 
 .score-circle {
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
   width: 190px;
   height: 190px;
-  margin-top: 1rem;
+  margin-top: 0.85rem;
   border: 14px solid var(--primary-soft);
   border-radius: 50%;
   background: white;
   box-shadow: inset 0 0 0 1px var(--line);
 }
 
-.score-circle strong,
-.score-circle span {
+.score-circle__value,
+.score-circle__label {
   display: block;
 }
 
-.score-circle strong {
+.score-circle__value {
   font-size: 3rem;
   line-height: 1;
   color: var(--primary-dark);
 }
 
-.score-circle span {
+.score-circle__label {
   color: var(--muted);
   font-weight: 800;
+  line-height: 1.15;
 }
 
 .stat-card {
@@ -1319,9 +1377,23 @@ button.account-subnav__item {
   flex-wrap: wrap;
   gap: 0.5rem;
   justify-content: flex-end;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.admin-activity-card__actions .button {
+  width: auto;
 }
 
 @media (max-width: 720px) {
+  .brand-logo__text small {
+    font-size: 0.78rem;
+  }
+
+  .brand-logo--hero .brand-logo__image {
+    height: 52px;
+  }
+
   .account-subnav {
     width: 100%;
     border-radius: 24px;
@@ -1577,6 +1649,14 @@ button.account-subnav__item {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(251, 253, 249, 0.92)),
     radial-gradient(circle at top right, rgba(242, 184, 75, 0.12), transparent 12rem);
+}
+
+.admin-summary-card__list {
+  margin-top: 1rem;
+}
+
+.admin-summary-card__actions {
+  margin-top: 1.35rem;
 }
 
 .admin-activity-list--cards {
@@ -2199,7 +2279,180 @@ button.account-subnav__item {
 }
 
 .admin-sync-note {
-  margin-top: 0.35rem;
+  margin-top: 0.55rem;
   font-size: 0.9rem;
-  color: var(--muted-text);
+  color: var(--muted);
+}
+
+/* v20 — Home com logo limpa e criação de simulados em aba separada */
+.brand-logo--hero-mark .brand-logo__image {
+  height: clamp(54px, 8vw, 82px);
+}
+
+.brand-logo--hero-mark .brand-logo__fallback {
+  width: 58px;
+  height: 58px;
+}
+
+.admin-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.38fr);
+  gap: 1rem;
+  align-items: start;
+  margin-bottom: 1.5rem;
+}
+
+.admin-page-card {
+  display: grid;
+  gap: 0.85rem;
+  min-height: 100%;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 253, 248, 0.92)),
+    radial-gradient(circle at top right, rgba(31, 138, 91, 0.12), transparent 18rem);
+}
+
+.admin-page-card h1,
+.create-simulation-header h1 {
+  margin: 0;
+  font-size: clamp(2.25rem, 5vw, 4rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+}
+
+.admin-page-card p,
+.create-simulation-header p {
+  max-width: 780px;
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.admin-page-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.3rem;
+}
+
+.admin-summary-card--compact {
+  position: sticky;
+  top: 100px;
+}
+
+.create-simulation-header {
+  display: grid;
+  gap: 0.85rem;
+  padding-bottom: 1.5rem;
+}
+
+.create-simulation-header .button {
+  width: fit-content;
+}
+
+.create-simulation-layout {
+  align-items: start;
+}
+
+.create-simulation-form {
+  gap: 1.15rem;
+}
+
+.area-distribution-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.1rem;
+  border: 1px solid rgba(31, 138, 91, 0.14);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(251, 253, 249, 0.9), rgba(239, 250, 243, 0.68)),
+    radial-gradient(circle at top right, rgba(242, 184, 75, 0.11), transparent 12rem);
+}
+
+.area-distribution-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.area-distribution-card h3 {
+  margin: 0.35rem 0 0.35rem;
+  font-size: clamp(1.25rem, 3vw, 1.75rem);
+  letter-spacing: -0.04em;
+}
+
+.area-distribution-card p,
+.area-distribution-hint {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+  font-weight: 650;
+}
+
+.area-distribution-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.area-distribution-grid input {
+  padding: 0.78rem 0.9rem;
+}
+
+.area-distribution-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.area-distribution-summary span {
+  padding: 0.8rem;
+  border: 1px solid rgba(31, 138, 91, 0.16);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--primary-dark);
+  font-weight: 800;
+}
+
+.area-distribution-summary--error span {
+  border-color: rgba(200, 70, 70, 0.25);
+  background: #fff0f0;
+  color: var(--danger);
+}
+
+.create-simulation-note {
+  display: grid;
+  gap: 1rem;
+}
+
+.create-simulation-note h2 {
+  margin: 0;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+}
+
+@media (max-width: 900px) {
+  .admin-overview-grid,
+  .create-simulation-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-summary-card--compact {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .area-distribution-card__header {
+    flex-direction: column;
+  }
+
+  .area-distribution-grid,
+  .area-distribution-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .create-simulation-header .button {
+    width: 100%;
+  }
 }

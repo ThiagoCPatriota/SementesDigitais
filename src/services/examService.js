@@ -17,7 +17,8 @@ export function getExamConfig() {
     ...APP_CONFIG.defaultExam,
     sourceMode: 'enem-dev',
     examYear: 'mixed',
-    requiresLanguageChoice: true
+    requiresLanguageChoice: true,
+    areaDistribution: {}
   });
 }
 
@@ -30,7 +31,8 @@ export function saveExamConfig(config) {
     questionCount: Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount,
     sourceMode,
     examYear: config.examYear || 'mixed',
-    requiresLanguageChoice: sourceMode === 'enem-dev' ? config.requiresLanguageChoice !== false : false
+    requiresLanguageChoice: sourceMode === 'enem-dev' ? config.requiresLanguageChoice !== false : false,
+    areaDistribution: normalizeAreaDistribution(config.areaDistribution)
   };
 
   save('examConfig', normalized);
@@ -73,6 +75,7 @@ export async function prepareExamQuestions() {
   const examYear = attempt.examYear || 'mixed';
   const languageChoice = normalizeLanguageChoice(attempt.languageChoice || 'ingles');
   const includeLanguageChoice = sourceMode === 'enem-dev' && attempt.requiresLanguageChoice !== false;
+  const areaDistribution = normalizeAreaDistribution(attempt.areaDistribution);
 
   const questions = sourceMode === 'mock'
     ? getMockQuestionSet(questionCount)
@@ -81,7 +84,8 @@ export async function prepareExamQuestions() {
         examYear,
         seed,
         language: languageChoice,
-        includeLanguageChoice
+        includeLanguageChoice,
+        areaDistribution
       });
 
   const numberedQuestions = numberQuestions(questions).slice(0, questionCount);
@@ -131,6 +135,7 @@ export function startAttempt(student, activityConfig = {}) {
     requiresLanguageChoice,
     languageChoice: requiresLanguageChoice ? config.languageChoice || '' : config.languageChoice || '',
     questionSeed: config.questionSeed || Date.now(),
+    areaDistribution: normalizeAreaDistribution(config.areaDistribution),
     questionsSnapshot: Array.isArray(config.questionsSnapshot) ? config.questionsSnapshot : [],
     startedAt: now.toISOString(),
     deadlineAt: deadline.toISOString(),
@@ -255,6 +260,16 @@ export function finalizeAttempt(reason = 'manual') {
 
 export function getResult() {
   return load('result', null);
+}
+
+function normalizeAreaDistribution(distribution = {}) {
+  if (!distribution || typeof distribution !== 'object') return {};
+
+  return Object.entries(distribution).reduce((accumulator, [key, value]) => {
+    const number = Math.max(0, Math.trunc(Number(value) || 0));
+    if (number > 0) accumulator[key] = number;
+    return accumulator;
+  }, {});
 }
 
 function getMockQuestionSet(questionCount) {
