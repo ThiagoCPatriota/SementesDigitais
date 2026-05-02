@@ -1,3 +1,10 @@
+const DEFAULT_ADMIN_EMAILS = ['admin@sementesdigitais.com', 'professor@sementesdigitais.com'];
+
+const configuredAdminEmails = (import.meta.env.VITE_ADMIN_EMAILS || DEFAULT_ADMIN_EMAILS.join(','))
+  .split(',')
+  .map((email) => email.trim().toLowerCase())
+  .filter(Boolean);
+
 export const APP_CONFIG = {
   appName: 'Sementes Digitais',
   moduleName: 'Simulados',
@@ -11,7 +18,7 @@ export const APP_CONFIG = {
     publishableKey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
   },
   admin: {
-    emails: ['admin@sementesdigitais.com']
+    emails: configuredAdminEmails
   },
   defaultExam: {
     title: 'Simulado Sementes Digitais 01',
