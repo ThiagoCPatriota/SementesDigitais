@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { APP_CONFIG } from '../config.js';
 import { Icon } from '../components/Icon.jsx';
 import { getCurrentAttempt, startAttempt } from '../services/examService.js';
 import {
-  createPersonalActivity,
   getActivities,
   getPersonalActivities,
   getPublishedActivities,
@@ -13,57 +12,26 @@ import {
   restoreClassActivityResult,
   restorePersonalActivityAttempt,
   restorePersonalActivityResult,
-  syncDashboardDataFromCloud,
   updatePersonalActivity
 } from '../services/activityService.js';
 
 export function Activities({ student, session, config, navigate, showToast, refreshAttempt, refreshResult }) {
   const isAdmin = session.role === 'admin';
   const [refreshKey, setRefreshKey] = useState(0);
-  const [personalForm, setPersonalForm] = useState({
-    title: APP_CONFIG.personalActivity.title,
-    questionCount: APP_CONFIG.personalActivity.questionCount,
-    durationMinutes: APP_CONFIG.personalActivity.durationMinutes
-  });
-
   const classActivities = useMemo(
     () => (isAdmin ? getActivities() : getPublishedActivities()),
     [isAdmin, refreshKey]
   );
-
 
   const personalActivities = useMemo(
     () => getPersonalActivities(student.email),
     [student.email, refreshKey]
   );
 
-
   const latestPublishedId = useMemo(
     () => getPublishedActivities()[0]?.id ?? null,
     [refreshKey]
   );
-
-
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function syncCloudData() {
-      await syncDashboardDataFromCloud(student.email);
-      if (isMounted) setRefreshKey((current) => current + 1);
-    }
-
-    syncCloudData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [student.email]);
-
-  function updatePersonalForm(event) {
-    const { name, value } = event.target;
-    setPersonalForm((current) => ({ ...current, [name]: value }));
-  }
 
   function startClassActivity(activity) {
     const studentRecord = getStudentClassActivityAttempt(activity.id, student.email);
@@ -109,59 +77,7 @@ export function Activities({ student, session, config, navigate, showToast, refr
     navigate('resultado');
   }
 
-  async function createAndStartPersonalActivity(event) {
-    event.preventDefault();
-
-    const questionCount = Number(personalForm.questionCount);
-    const durationMinutes = Number(personalForm.durationMinutes);
-
-    if (!personalForm.title.trim()) {
-      showToast('Informe um nome para a atividade pessoal.', 'error');
-      return;
-    }
-
-    if (questionCount < 1 || questionCount > 90) {
-      showToast('Informe uma quantidade entre 1 e 90 questões.', 'error');
-      return;
-    }
-
-    if (durationMinutes < 1 || durationMinutes > 300) {
-      showToast('Informe um tempo entre 1 e 300 minutos.', 'error');
-      return;
-    }
-
-    try {
-      const activity = await createPersonalActivity({
-        ...personalForm,
-        questionCount,
-        durationMinutes,
-        ownerEmail: student.email,
-        classCode: config.classCode,
-        sourceMode: config.sourceMode || 'enem-dev',
-        examYear: config.examYear || 'mixed'
-      });
-
-      const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
-      await updatePersonalActivity(student.email, activity.id, {
-        status: 'in_progress',
-        attemptId: attempt.id,
-        startedAt: attempt.startedAt,
-        deadlineAt: attempt.deadlineAt,
-        attemptSnapshot: attempt,
-        answersSnapshot: {}
-      });
-
-      refreshAttempt();
-      refreshResult?.();
-      setRefreshKey((current) => current + 1);
-      showToast('Atividade pessoal criada e salva no Supabase. Boa prática!');
-      navigate('prova');
-    } catch (error) {
-      showToast(error?.message || 'Não foi possível criar a atividade pessoal no Supabase.', 'error');
-    }
-  }
-
-  async function continuePersonalActivity(activity) {
+  function continuePersonalActivity(activity) {
     const expired = isActivityExpired(activity);
 
     if (expired) {
@@ -172,7 +88,7 @@ export function Activities({ student, session, config, navigate, showToast, refr
         return;
       }
 
-      await updatePersonalActivity(student.email, activity.id, { status: 'finished', finishedAt: new Date().toISOString() });
+      updatePersonalActivity(student.email, activity.id, { status: 'finished', finishedAt: new Date().toISOString() });
       setRefreshKey((current) => current + 1);
       showToast('Essa atividade já foi encerrada.', 'error');
       return;
@@ -194,24 +110,20 @@ export function Activities({ student, session, config, navigate, showToast, refr
       return;
     }
 
-    try {
-      const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
-      await updatePersonalActivity(student.email, activity.id, {
-        status: 'in_progress',
-        attemptId: attempt.id,
-        startedAt: attempt.startedAt,
-        deadlineAt: attempt.deadlineAt,
-        attemptSnapshot: attempt,
-        answersSnapshot: {}
-      });
+    const attempt = startAttempt(student, { ...activity, activityType: 'pessoal', activityId: activity.id });
+    updatePersonalActivity(student.email, activity.id, {
+      status: 'in_progress',
+      attemptId: attempt.id,
+      startedAt: attempt.startedAt,
+      deadlineAt: attempt.deadlineAt,
+      attemptSnapshot: attempt,
+      answersSnapshot: {}
+    });
 
-      refreshAttempt();
-      refreshResult?.();
-      setRefreshKey((current) => current + 1);
-      navigate('prova');
-    } catch (error) {
-      showToast(error?.message || 'Não foi possível atualizar a atividade pessoal no Supabase.', 'error');
-    }
+    refreshAttempt();
+    refreshResult?.();
+    setRefreshKey((current) => current + 1);
+    navigate('prova');
   }
 
   function viewPersonalResult(activity) {
@@ -340,23 +252,10 @@ export function Activities({ student, session, config, navigate, showToast, refr
             </div>
             <span className="eyebrow">Prática individual</span>
             <h2>Criar atividade pessoal</h2>
-            <form className="activity-create-form" onSubmit={createAndStartPersonalActivity}>
-              <label>
-                Nome
-                <input name="title" value={personalForm.title} onChange={updatePersonalForm} placeholder="Ex.: Revisão de matemática" required />
-              </label>
-              <div className="form-grid form-grid--compact">
-                <label>
-                  Questões
-                  <input type="number" min="1" max="90" name="questionCount" value={personalForm.questionCount} onChange={updatePersonalForm} required />
-                </label>
-                <label>
-                  Tempo
-                  <input type="number" min="1" max="300" name="durationMinutes" value={personalForm.durationMinutes} onChange={updatePersonalForm} required />
-                </label>
-              </div>
-              <button className="button button--ghost button--full" type="submit">Criar e iniciar</button>
-            </form>
+            <p>Monte uma prática com até 90 questões e escolha a distribuição entre as áreas do ENEM.</p>
+            <button className="button button--ghost button--full" type="button" onClick={() => navigate('criar')}>
+              Abrir criador
+            </button>
           </article>
         ) : null}
       </section>

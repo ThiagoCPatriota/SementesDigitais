@@ -8,7 +8,6 @@ import {
   finalizeAttempt,
   getAnswers,
   getExamQuestions,
-  prepareExamQuestions,
   saveAnswer,
   setAttemptLanguageChoice
 } from '../services/examService.js';
@@ -44,7 +43,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
       setQuestionError('');
 
       try {
-        const loadedQuestions = await prepareExamQuestions();
+        const loadedQuestions = await getExamQuestions();
         if (!isMounted) return;
         setQuestions(loadedQuestions);
         refreshAttempt();

@@ -141,12 +141,11 @@ const baseQuestions = [
   }
 ];
 
-export const mockQuestions = Array.from({ length: 60 }, (_, index) => {
+export const mockQuestions = Array.from({ length: 90 }, (_, index) => {
   const original = baseQuestions[index % baseQuestions.length];
   return {
     ...original,
     id: `mock-${String(index + 1).padStart(3, '0')}`,
-    number: index + 1,
-    statement: original.statement
+    number: index + 1
   };
 });

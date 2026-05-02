@@ -1,6 +1,5 @@
 import { APP_CONFIG } from '../config.js';
 import { mockQuestions } from '../data/mockQuestions.js';
-import { fetchQuestionSetFromEnemDev, normalizeLanguageChoice } from './enemApi.js';
 import { clearAttemptData, load, save } from './storage.js';
 import {
   markPersonalActivityFinished,
@@ -10,106 +9,43 @@ import {
   updatePersonalActivityProgress
 } from './activityService.js';
 
-const ATTEMPT_QUESTIONS_KEY = 'attemptQuestions';
-
 export function getExamConfig() {
   return load('examConfig', {
     ...APP_CONFIG.defaultExam,
-    sourceMode: 'enem-dev',
-    examYear: 'mixed',
-    requiresLanguageChoice: true,
-    areaDistribution: {}
+    sourceMode: 'mock'
   });
 }
 
 export function saveExamConfig(config) {
-  const sourceMode = config.sourceMode || 'enem-dev';
   const normalized = {
     title: config.title?.trim() || APP_CONFIG.defaultExam.title,
     classCode: config.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount,
-    sourceMode,
-    examYear: config.examYear || 'mixed',
-    requiresLanguageChoice: sourceMode === 'enem-dev' ? config.requiresLanguageChoice !== false : false,
+    sourceMode: config.sourceMode || 'mock',
     areaDistribution: normalizeAreaDistribution(config.areaDistribution)
   };
 
   save('examConfig', normalized);
   clearAttemptData();
-  save(ATTEMPT_QUESTIONS_KEY, []);
   return normalized;
 }
 
 export function getExamQuestions() {
-  const savedQuestions = load(ATTEMPT_QUESTIONS_KEY, []);
-  if (Array.isArray(savedQuestions) && savedQuestions.length > 0) {
-    return numberQuestions(savedQuestions);
-  }
-
-  const attempt = getCurrentAttempt();
-  if (Array.isArray(attempt?.questionsSnapshot) && attempt.questionsSnapshot.length > 0) {
-    return numberQuestions(attempt.questionsSnapshot);
-  }
-
   const config = getExamConfig();
-  const questionCount = Number(attempt?.questionCount || config.questionCount || APP_CONFIG.defaultExam.questionCount);
-
-  if ((attempt?.sourceMode || config.sourceMode) === 'mock') {
-    return getMockQuestionSet(questionCount);
-  }
-
-  return [];
-}
-
-export async function prepareExamQuestions() {
   const attempt = getCurrentAttempt();
-  if (!attempt) return [];
+  const questionCount = Number(attempt?.questionCount || config.questionCount || APP_CONFIG.defaultExam.questionCount);
+  const areaDistribution = normalizeAreaDistribution(attempt?.areaDistribution || config.areaDistribution);
 
-  const currentQuestions = getExamQuestions();
-  if (currentQuestions.length > 0) return currentQuestions;
+  const selectedQuestions = hasDistribution(areaDistribution)
+    ? selectQuestionsByArea(areaDistribution, questionCount)
+    : takeQuestions(mockQuestions, questionCount);
 
-  const questionCount = Number(attempt.questionCount || APP_CONFIG.defaultExam.questionCount);
-  const sourceMode = attempt.sourceMode || 'enem-dev';
-  const seed = attempt.questionSeed || attempt.startedAt || Date.now();
-  const examYear = attempt.examYear || 'mixed';
-  const languageChoice = normalizeLanguageChoice(attempt.languageChoice || 'ingles');
-  const includeLanguageChoice = sourceMode === 'enem-dev' && attempt.requiresLanguageChoice !== false;
-  const areaDistribution = normalizeAreaDistribution(attempt.areaDistribution);
-
-  const questions = sourceMode === 'mock'
-    ? getMockQuestionSet(questionCount)
-    : await fetchQuestionSetFromEnemDev({
-        questionCount,
-        examYear,
-        seed,
-        language: languageChoice,
-        includeLanguageChoice,
-        areaDistribution
-      });
-
-  const numberedQuestions = numberQuestions(questions).slice(0, questionCount);
-  save(ATTEMPT_QUESTIONS_KEY, numberedQuestions);
-
-  const updatedAttempt = {
-    ...attempt,
-    languageChoice: includeLanguageChoice ? languageChoice : attempt.languageChoice,
-    questionsSnapshot: numberedQuestions,
-    updatedAt: new Date().toISOString()
-  };
-
-  save('attempt', updatedAttempt);
-
-  const answers = getAnswers();
-  if (updatedAttempt.activityType === 'turma') {
-    updateClassActivityAttemptProgress(updatedAttempt, answers);
-  }
-
-  if (updatedAttempt.activityType === 'pessoal') {
-    updatePersonalActivityProgress(updatedAttempt, answers);
-  }
-
-  return numberedQuestions;
+  return selectedQuestions.slice(0, questionCount).map((question, index) => ({
+    ...question,
+    id: `${question.id}-slot-${index + 1}`,
+    number: index + 1
+  }));
 }
 
 export function startAttempt(student, activityConfig = {}) {
@@ -118,8 +54,6 @@ export function startAttempt(student, activityConfig = {}) {
   const now = new Date();
   const durationMinutes = Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes;
   const questionCount = Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount;
-  const sourceMode = config.sourceMode || 'enem-dev';
-  const requiresLanguageChoice = sourceMode === 'enem-dev' && config.requiresLanguageChoice !== false;
   const deadline = new Date(now.getTime() + durationMinutes * 60 * 1000);
 
   const attempt = {
@@ -130,13 +64,7 @@ export function startAttempt(student, activityConfig = {}) {
     activityId: config.activityId || config.id || null,
     durationMinutes,
     questionCount,
-    sourceMode,
-    examYear: config.examYear || 'mixed',
-    requiresLanguageChoice,
-    languageChoice: requiresLanguageChoice ? config.languageChoice || '' : config.languageChoice || '',
-    questionSeed: config.questionSeed || Date.now(),
     areaDistribution: normalizeAreaDistribution(config.areaDistribution),
-    questionsSnapshot: Array.isArray(config.questionsSnapshot) ? config.questionsSnapshot : [],
     startedAt: now.toISOString(),
     deadlineAt: deadline.toISOString(),
     submittedAt: null,
@@ -146,7 +74,6 @@ export function startAttempt(student, activityConfig = {}) {
   save('attempt', attempt);
   save('answers', {});
   save('result', null);
-  save(ATTEMPT_QUESTIONS_KEY, attempt.questionsSnapshot || []);
 
   if (attempt.activityType === 'turma' && attempt.activityId) {
     recordClassActivityStart(config, attempt);
@@ -155,35 +82,22 @@ export function startAttempt(student, activityConfig = {}) {
   return attempt;
 }
 
+export function getCurrentAttempt() {
+  return load('attempt', null);
+}
+
 export function setAttemptLanguageChoice(languageChoice) {
   const attempt = getCurrentAttempt();
   if (!attempt) return null;
 
-  const normalizedLanguage = normalizeLanguageChoice(languageChoice);
   const updatedAttempt = {
     ...attempt,
-    languageChoice: normalizedLanguage,
-    questionsSnapshot: [],
-    updatedAt: new Date().toISOString()
+    languageChoice,
+    requiresLanguageChoice: false
   };
 
   save('attempt', updatedAttempt);
-  save(ATTEMPT_QUESTIONS_KEY, []);
-
-  const answers = getAnswers();
-  if (updatedAttempt.activityType === 'turma') {
-    updateClassActivityAttemptProgress(updatedAttempt, answers);
-  }
-
-  if (updatedAttempt.activityType === 'pessoal') {
-    updatePersonalActivityProgress(updatedAttempt, answers);
-  }
-
   return updatedAttempt;
-}
-
-export function getCurrentAttempt() {
-  return load('attempt', null);
 }
 
 export function getAnswers() {
@@ -215,8 +129,6 @@ export function finalizeAttempt(reason = 'manual') {
   if (!attempt) return null;
 
   const questions = getExamQuestions();
-  if (!questions.length) return null;
-
   const answers = getAnswers();
   const answeredCount = Object.keys(answers).length;
   const correctCount = questions.reduce((total, question) => {
@@ -232,14 +144,11 @@ export function finalizeAttempt(reason = 'manual') {
     correctCount,
     blankCount: questions.length - answeredCount,
     scorePercent: questions.length ? Math.round((correctCount / questions.length) * 100) : 0,
-    languageChoice: attempt.languageChoice || '',
-    questionsSnapshot: questions,
     finalizedAt: new Date().toISOString()
   };
 
   const finalizedAttempt = {
     ...attempt,
-    questionsSnapshot: questions,
     submittedAt: result.finalizedAt,
     status: reason === 'expired' ? 'expirada' : 'finalizada'
   };
@@ -265,23 +174,45 @@ export function getResult() {
 function normalizeAreaDistribution(distribution = {}) {
   if (!distribution || typeof distribution !== 'object') return {};
 
-  return Object.entries(distribution).reduce((accumulator, [key, value]) => {
-    const number = Math.max(0, Math.trunc(Number(value) || 0));
-    if (number > 0) accumulator[key] = number;
-    return accumulator;
-  }, {});
+  return Object.fromEntries(
+    Object.entries(distribution)
+      .map(([area, value]) => [area, Number(value || 0)])
+      .filter(([, value]) => value > 0)
+  );
 }
 
-function getMockQuestionSet(questionCount) {
-  return mockQuestions.slice(0, questionCount).map((question, index) => ({
-    ...question,
-    number: index + 1
+function hasDistribution(distribution = {}) {
+  return Object.values(distribution).some((value) => Number(value || 0) > 0);
+}
+
+function selectQuestionsByArea(distribution, totalQuestions) {
+  const selected = [];
+
+  Object.entries(distribution).forEach(([area, count]) => {
+    const areaQuestions = mockQuestions.filter((question) => normalizeArea(question.area) === normalizeArea(area));
+    selected.push(...takeQuestions(areaQuestions.length ? areaQuestions : mockQuestions, Number(count || 0)));
+  });
+
+  if (selected.length < totalQuestions) {
+    selected.push(...takeQuestions(mockQuestions, totalQuestions - selected.length));
+  }
+
+  return selected;
+}
+
+function takeQuestions(sourceQuestions, count) {
+  const source = Array.isArray(sourceQuestions) && sourceQuestions.length ? sourceQuestions : mockQuestions;
+  const total = Math.max(0, Number(count || 0));
+
+  return Array.from({ length: total }, (_, index) => ({
+    ...source[index % source.length]
   }));
 }
 
-function numberQuestions(questions) {
-  return questions.map((question, index) => ({
-    ...question,
-    number: index + 1
-  }));
+function normalizeArea(value = '') {
+  return String(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
 }

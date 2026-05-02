@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
+import { APP_CONFIG } from './config.js';
 import { Layout, EmptyState } from './components/Layout.jsx';
 import { Toast } from './components/Toast.jsx';
 import { Home } from './pages/Home.jsx';
 import { Access } from './pages/Access.jsx';
 import { Account } from './pages/Account.jsx';
 import { Activities } from './pages/Activities.jsx';
+import { CreatePersonalActivity } from './pages/CreatePersonalActivity.jsx';
 import { Admin } from './pages/Admin.jsx';
-import { CreateSimulation } from './pages/CreateSimulation.jsx';
-import { AdminResponses } from './pages/AdminResponses.jsx';
 import { Exam } from './pages/Exam.jsx';
 import { Result } from './pages/Result.jsx';
 import { clearAttemptData, load } from './services/storage.js';
@@ -51,7 +51,7 @@ export default function App() {
   useEffect(() => {
     const isAuthenticated = Boolean(session && student);
     if (isAuthenticated && route === 'home') {
-      navigate('atividades');
+      navigate(session?.role === 'admin' ? 'atividades' : 'criar');
     }
   }, [route, session, student]);
 
@@ -77,7 +77,7 @@ export default function App() {
     setResult(getResult());
   }
 
-  function handleAuthenticated(nextSession, nextRoute = 'atividades') {
+  function handleAuthenticated(nextSession, nextRoute = 'criar') {
     setSession(nextSession);
     setStudent(load('student', null));
     navigate(nextRoute);
@@ -102,9 +102,9 @@ export default function App() {
   const safeSession = getStoredAuthSession();
 
   const protectedRoute = !PUBLIC_ROUTES.has(route);
-  const requiresAdmin = route === 'admin' || route === 'criar-simulado' || route.startsWith('admin-respostas/');
+  const requiresAdmin = route === 'admin';
   const canUseProtected = Boolean(safeSession && student);
-  const activeRoute = route === 'acesso' ? 'acesso' : route.startsWith('admin-respostas/') ? 'admin' : route;
+  const activeRoute = route === 'acesso' ? 'acesso' : route;
 
   let content;
 
@@ -159,11 +159,6 @@ export default function App() {
 function renderRoute(props) {
   const { route } = props;
 
-  if (route.startsWith('admin-respostas/')) {
-    const activityId = decodeURIComponent(route.replace('admin-respostas/', ''));
-    return <AdminResponses activityId={activityId} navigate={props.navigate} />;
-  }
-
   switch (route) {
     case 'home':
       return <Home config={props.config} navigate={props.navigate} />;
@@ -174,6 +169,8 @@ function renderRoute(props) {
       return <Access config={props.config} student={props.student} onAuthenticated={props.onAuthenticated} showToast={props.showToast} />;
     case 'conta':
       return <Account student={props.student} session={props.session} onSignOut={props.onSignOut} />;
+    case 'criar':
+      return <CreatePersonalActivity student={props.student} config={props.config} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} refreshResult={props.refreshResult} />;
     case 'atividades':
       return <Activities student={props.student} session={props.session} config={props.config} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} refreshResult={props.refreshResult} />;
     case 'prova':
@@ -182,8 +179,6 @@ function renderRoute(props) {
       return <Result result={props.result} attempt={props.attempt} navigate={props.navigate} />;
     case 'admin':
       return <Admin config={props.config} onConfigSaved={props.onConfigSaved} showToast={props.showToast} navigate={props.navigate} />;
-    case 'criar-simulado':
-      return <CreateSimulation config={props.config} onConfigSaved={props.onConfigSaved} showToast={props.showToast} navigate={props.navigate} />;
     default:
       return <Home config={props.config} navigate={props.navigate} />;
   }

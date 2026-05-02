@@ -1,5 +1,5 @@
+import { APP_CONFIG } from '../config.js';
 import { Icon } from './Icon.jsx';
-import { BrandLogo } from './BrandLogo.jsx';
 
 export function Layout({ route, session, children, navigate }) {
   const isSignedIn = Boolean(session);
@@ -7,11 +7,18 @@ export function Layout({ route, session, children, navigate }) {
   const brandRoute = isSignedIn ? 'atividades' : 'home';
 
   const items = isSignedIn
-    ? [
-        ['atividades', 'Atividades'],
-        ...(isAdmin ? [['admin', 'Administração'], ['criar-simulado', 'Criar']] : [['prova', 'Prova']]),
-        ['conta', 'Conta']
-      ]
+    ? isAdmin
+      ? [
+          ['atividades', 'Atividades'],
+          ['admin', 'Administração'],
+          ['conta', 'Conta']
+        ]
+      : [
+          ['criar', 'Criar'],
+          ['atividades', 'Atividades'],
+          ['prova', 'Prova'],
+          ['conta', 'Conta']
+        ]
     : [
         ['home', 'Início'],
         ['acesso', 'Acesso']
@@ -21,7 +28,11 @@ export function Layout({ route, session, children, navigate }) {
     <>
       <header className="topbar">
         <a className="brand" href={`#${brandRoute}`} aria-label="Voltar para área principal" onClick={(event) => handleNav(event, brandRoute, navigate)}>
-          <BrandLogo className="brand-logo--header" compact />
+          <span className="brand__mark">SD</span>
+          <span>
+            <strong>{APP_CONFIG.appName}</strong>
+            <small>{APP_CONFIG.moduleName}</small>
+          </span>
         </a>
 
         <nav className="nav" aria-label="Navegação principal">
