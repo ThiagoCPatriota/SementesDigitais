@@ -1,5 +1,5 @@
-import { APP_CONFIG } from '../config.js';
 import { Icon } from './Icon.jsx';
+import { BrandLogo } from './BrandLogo.jsx';
 
 export function Layout({ route, session, children, navigate }) {
   const isSignedIn = Boolean(session);
@@ -28,11 +28,7 @@ export function Layout({ route, session, children, navigate }) {
     <>
       <header className="topbar">
         <a className="brand" href={`#${brandRoute}`} aria-label="Voltar para área principal" onClick={(event) => handleNav(event, brandRoute, navigate)}>
-          <span className="brand__mark">SD</span>
-          <span>
-            <strong>{APP_CONFIG.appName}</strong>
-            <small>{APP_CONFIG.moduleName}</small>
-          </span>
+          <BrandLogo className="brand-logo--topbar" />
         </a>
 
         <nav className="nav" aria-label="Navegação principal">

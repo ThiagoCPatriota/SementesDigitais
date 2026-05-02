@@ -105,7 +105,10 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
       durationMinutes,
       ownerEmail: student.email,
       classCode: config.classCode,
-      sourceMode: config.sourceMode || 'mock',
+      sourceMode: 'enem-dev',
+      requiresLanguageChoice: true,
+      examYear: 'mixed',
+      questionSeed: Date.now(),
       areaDistribution: cleanDistribution(form.areaDistribution)
     });
 
@@ -131,7 +134,7 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
       <section className="section-header create-personal-header">
         <span className="eyebrow">Criar atividade pessoal</span>
         <h1>Monte sua prática ENEM</h1>
-        <p>Escolha o total de questões, o tempo e como essa prática será distribuída entre as áreas do ENEM.</p>
+        <p>Escolha o total de questões, o tempo, a distribuição por área e, ao iniciar, defina se quer fazer Inglês, Espanhol ou seguir sem língua estrangeira.</p>
       </section>
 
       <section className="form-layout create-personal-layout">
@@ -159,6 +162,18 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
                 required
               />
               <small>Máximo de 90 questões.</small>
+              <div className="quick-question-options" aria-label="Sugestões rápidas de quantidade">
+                {[30, 60, 90].map((option) => (
+                  <button
+                    className={`quick-question-options__button ${Number(form.questionCount) === option ? 'quick-question-options__button--active' : ''}`}
+                    key={option}
+                    type="button"
+                    onClick={() => updateField({ target: { name: 'questionCount', value: option } })}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
             </label>
 
             <label>
@@ -181,6 +196,7 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
               <div>
                 <span className="eyebrow">Distribuição por área</span>
                 <h3>Escolha as áreas da sua prática</h3>
+                <p>O total escolhido pode ser dividido manualmente ou distribuído automaticamente entre Matemática, Linguagens, Humanas e Natureza.</p>
               </div>
               <button className="button button--ghost button--compact" type="button" onClick={resetDistribution}>
                 Distribuir automático
