@@ -1,9 +1,14 @@
 const ENEM_API_BASE_URL = 'https://api.enem.dev/v1';
 
 export const ENEM_AVAILABLE_YEARS = Array.from({ length: 15 }, (_, index) => 2023 - index);
+export const ENEM_NO_LANGUAGE_CHOICE = 'sem-lingua';
 export const ENEM_LANGUAGE_OPTIONS = [
   { value: 'ingles', label: 'Inglês' },
   { value: 'espanhol', label: 'Espanhol' }
+];
+export const ENEM_LANGUAGE_CHOICE_OPTIONS = [
+  ...ENEM_LANGUAGE_OPTIONS,
+  { value: ENEM_NO_LANGUAGE_CHOICE, label: 'Não quero fazer nessa prova', shortLabel: 'Sem língua' }
 ];
 
 const FOREIGN_LANGUAGE_QUESTION_COUNT = 5;
@@ -44,6 +49,8 @@ export async function fetchQuestionSetFromEnemDev({
   const count = clampNumber(questionCount, 1, 180);
   const normalizedSeed = normalizeSeed(seed);
   const normalizedLanguage = normalizeLanguageChoice(language);
+  const shouldIncludeLanguageChoice = Boolean(includeLanguageChoice && !isNoLanguageChoice(normalizedLanguage));
+  const languageQuery = shouldIncludeLanguageChoice ? normalizedLanguage : '';
   const years = examYear === 'mixed'
     ? seededShuffle(ENEM_AVAILABLE_YEARS, normalizedSeed)
     : [Number(examYear) || 2023];
@@ -52,7 +59,7 @@ export async function fetchQuestionSetFromEnemDev({
   const usedIds = new Set();
   const normalizedAreaDistribution = normalizeAreaDistribution(areaDistribution, count);
 
-  if (includeLanguageChoice) {
+  if (shouldIncludeLanguageChoice) {
     const languageYear = years[0] || 2023;
     const languageQuestions = await fetchLanguageQuestions({
       year: languageYear,
@@ -73,7 +80,7 @@ export async function fetchQuestionSetFromEnemDev({
       years,
       areaDistribution: normalizedAreaDistribution,
       seed: normalizedSeed,
-      language: normalizedLanguage,
+      language: languageQuery,
       usedIds,
       alreadySelectedQuestions: questions,
       limit: count
@@ -88,7 +95,7 @@ export async function fetchQuestionSetFromEnemDev({
       years,
       count: commonTarget,
       seed: normalizedSeed,
-      language: normalizedLanguage,
+      language: languageQuery,
       usedIds
     });
 
@@ -106,11 +113,18 @@ export async function fetchQuestionSetFromEnemDev({
 }
 
 export function normalizeLanguageChoice(value = 'ingles') {
+  if (value === ENEM_NO_LANGUAGE_CHOICE) return ENEM_NO_LANGUAGE_CHOICE;
   return value === 'espanhol' ? 'espanhol' : 'ingles';
 }
 
+export function isNoLanguageChoice(value = '') {
+  return value === ENEM_NO_LANGUAGE_CHOICE;
+}
+
 export function getLanguageLabel(value = 'ingles') {
-  return normalizeLanguageChoice(value) === 'espanhol' ? 'Espanhol' : 'Inglês';
+  const normalized = normalizeLanguageChoice(value);
+  if (isNoLanguageChoice(normalized)) return 'Sem língua estrangeira';
+  return normalized === 'espanhol' ? 'Espanhol' : 'Inglês';
 }
 
 function normalizeAreaDistribution(distribution = {}, limit = 90) {
@@ -251,7 +265,7 @@ async function fetchQuestionsPage({ year, limit, offset, language = '' }) {
     offset: String(offset)
   });
 
-  if (language) params.set('language', normalizeLanguageChoice(language));
+  if (language && !isNoLanguageChoice(language)) params.set('language', normalizeLanguageChoice(language));
 
   const url = `${ENEM_API_BASE_URL}/exams/${year}/questions?${params.toString()}`;
   const response = await fetch(url);

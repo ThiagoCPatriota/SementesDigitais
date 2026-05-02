@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '../config.js';
+import { ENEM_NO_LANGUAGE_CHOICE, getLanguageLabel, isNoLanguageChoice } from './enemApi.js';
 import { mockQuestions } from '../data/mockQuestions.js';
 import { clearAttemptData, load, save } from './storage.js';
 import {
@@ -23,6 +24,9 @@ export function saveExamConfig(config) {
     durationMinutes: Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount,
     sourceMode: config.sourceMode || 'mock',
+    examYear: config.examYear || 'mixed',
+    questionSeed: config.questionSeed || Date.now(),
+    requiresLanguageChoice: config.requiresLanguageChoice !== false,
     areaDistribution: normalizeAreaDistribution(config.areaDistribution)
   };
 
@@ -40,12 +44,22 @@ export function getExamQuestions() {
   const selectedQuestions = hasDistribution(areaDistribution)
     ? selectQuestionsByArea(areaDistribution, questionCount)
     : takeQuestions(mockQuestions, questionCount);
+  const languageChoice = attempt?.languageChoice || '';
+  const shouldMarkLanguageQuestions = Boolean(languageChoice && !isNoLanguageChoice(languageChoice));
 
-  return selectedQuestions.slice(0, questionCount).map((question, index) => ({
-    ...question,
-    id: `${question.id}-slot-${index + 1}`,
-    number: index + 1
-  }));
+  return selectedQuestions.slice(0, questionCount).map((question, index) => {
+    const isLanguageQuestion = shouldMarkLanguageQuestions && index < Math.min(5, questionCount);
+
+    return {
+      ...question,
+      id: `${question.id || 'questao'}-slot-${index + 1}`,
+      number: index + 1,
+      area: isLanguageQuestion ? 'Linguagens' : question.area,
+      language: isLanguageQuestion ? languageChoice : question.language,
+      languageLabel: isLanguageQuestion ? getLanguageLabel(languageChoice) : question.languageLabel,
+      isLanguageQuestion: Boolean(isLanguageQuestion || question.isLanguageQuestion)
+    };
+  });
 }
 
 export function startAttempt(student, activityConfig = {}) {
@@ -64,6 +78,10 @@ export function startAttempt(student, activityConfig = {}) {
     activityId: config.activityId || config.id || null,
     durationMinutes,
     questionCount,
+    sourceMode: config.sourceMode || 'mock',
+    examYear: config.examYear || 'mixed',
+    questionSeed: config.questionSeed || Date.now(),
+    requiresLanguageChoice: config.requiresLanguageChoice !== false,
     areaDistribution: normalizeAreaDistribution(config.areaDistribution),
     startedAt: now.toISOString(),
     deadlineAt: deadline.toISOString(),
@@ -90,9 +108,11 @@ export function setAttemptLanguageChoice(languageChoice) {
   const attempt = getCurrentAttempt();
   if (!attempt) return null;
 
+  const normalizedChoice = languageChoice || ENEM_NO_LANGUAGE_CHOICE;
   const updatedAttempt = {
     ...attempt,
-    languageChoice,
+    languageChoice: normalizedChoice,
+    includeLanguageChoice: !isNoLanguageChoice(normalizedChoice),
     requiresLanguageChoice: false
   };
 
@@ -144,13 +164,16 @@ export function finalizeAttempt(reason = 'manual') {
     correctCount,
     blankCount: questions.length - answeredCount,
     scorePercent: questions.length ? Math.round((correctCount / questions.length) * 100) : 0,
-    finalizedAt: new Date().toISOString()
+    languageChoice: attempt.languageChoice || '',
+    finalizedAt: new Date().toISOString(),
+    questionsSnapshot: questions
   };
 
   const finalizedAttempt = {
     ...attempt,
     submittedAt: result.finalizedAt,
-    status: reason === 'expired' ? 'expirada' : 'finalizada'
+    status: reason === 'expired' ? 'expirada' : 'finalizada',
+    questionsSnapshot: questions
   };
 
   save('attempt', finalizedAttempt);

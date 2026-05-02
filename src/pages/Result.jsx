@@ -50,13 +50,17 @@ export function Result({ result, attempt, navigate }) {
         </div>
       </section>
 
-      {isPersonalActivity ? <PersonalAnswerReview /> : null}
+      {isPersonalActivity ? <PersonalAnswerReview result={result} attempt={attempt} /> : null}
     </>
   );
 }
 
-function PersonalAnswerReview() {
-  const questions = getExamQuestions();
+function PersonalAnswerReview({ result, attempt }) {
+  const questions = Array.isArray(result?.questionsSnapshot) && result.questionsSnapshot.length > 0
+    ? result.questionsSnapshot
+    : Array.isArray(attempt?.questionsSnapshot) && attempt.questionsSnapshot.length > 0
+      ? attempt.questionsSnapshot
+      : getExamQuestions();
   const answers = getAnswers();
 
   return (
@@ -64,7 +68,7 @@ function PersonalAnswerReview() {
       <div className="section-header section-header--compact">
         <span className="eyebrow">Correção da prática pessoal</span>
         <h2>Gabarito comentado por marcação</h2>
-        <p>Verde indica a resposta correta. Vermelho indica uma alternativa marcada incorretamente. Azul indica sua marcação quando precisar de destaque.</p>
+        <p>Verde indica a resposta correta. Vermelho mostra a marcação errada do aluno. Azul funciona como destaque da alternativa escolhida quando ela precisa aparecer separada do gabarito.</p>
       </div>
 
       <div className="answer-review-legend">
@@ -101,7 +105,7 @@ function PersonalAnswerReview() {
                     'answer-review-alternative',
                     isRight ? 'answer-review-alternative--correct' : '',
                     isSelected && !isRight ? 'answer-review-alternative--wrong' : '',
-                    isSelected ? 'answer-review-alternative--selected' : ''
+                    isSelected && !isRight ? 'answer-review-alternative--selected' : ''
                   ].filter(Boolean).join(' ');
 
                   return (

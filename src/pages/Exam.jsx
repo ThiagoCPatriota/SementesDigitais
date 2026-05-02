@@ -3,7 +3,7 @@ import { EmptyState } from '../components/Layout.jsx';
 import { Progress } from '../components/Progress.jsx';
 import { QuestionCard } from '../components/QuestionCard.jsx';
 import { Timer } from '../components/Timer.jsx';
-import { ENEM_LANGUAGE_OPTIONS, getLanguageLabel } from '../services/enemApi.js';
+import { ENEM_LANGUAGE_CHOICE_OPTIONS, ENEM_NO_LANGUAGE_CHOICE, getLanguageLabel, isNoLanguageChoice } from '../services/enemApi.js';
 import {
   finalizeAttempt,
   getAnswers,
@@ -16,7 +16,7 @@ import { secondsUntil } from '../utils/timer.js';
 export function Exam({ attempt, result, navigate, showToast, refreshAttempt, refreshResult }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState(() => getAnswers());
-  const [questions, setQuestions] = useState(() => getExamQuestions());
+  const [questions, setQuestions] = useState(() => shouldWaitForLanguageChoice(attempt) ? [] : getExamQuestions());
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [questionError, setQuestionError] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState(() => attempt ? secondsUntil(attempt.deadlineAt) : 0);
@@ -27,11 +27,20 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
   const answeredCount = Object.keys(answers).length;
   const hasQuestions = questions.length > 0;
   const selectedLanguageLabel = attempt?.languageChoice ? getLanguageLabel(attempt.languageChoice) : '';
+  const selectedNoLanguage = Boolean(attempt?.languageChoice && isNoLanguageChoice(attempt.languageChoice));
 
   const languageQuestionCount = useMemo(
     () => questions.filter((question) => question.isLanguageQuestion || question.language === 'ingles' || question.language === 'espanhol').length,
     [questions]
   );
+
+  useEffect(() => {
+    if (shouldWaitForLanguageChoice(attempt)) {
+      setQuestions([]);
+      setCurrentQuestionIndex(0);
+      setQuestionError('');
+    }
+  }, [attempt?.id, attempt?.languageChoice, attempt?.requiresLanguageChoice, attempt?.sourceMode]);
 
   useEffect(() => {
     let isMounted = true;
@@ -112,7 +121,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
   }
 
   function handleLanguageChoice(languageChoice) {
-    if (hasQuestions) {
+    if (hasQuestions && attempt.languageChoice && attempt.languageChoice !== languageChoice) {
       showToast('A língua estrangeira já foi definida para esta tentativa.', 'error');
       return;
     }
@@ -124,7 +133,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
     setCurrentQuestionIndex(0);
     setQuestionError('');
     refreshAttempt();
-    showToast(`Língua estrangeira selecionada: ${getLanguageLabel(languageChoice)}.`);
+    showToast(isNoLanguageChoice(languageChoice) ? 'Prova sem língua estrangeira selecionada.' : `Língua estrangeira selecionada: ${getLanguageLabel(languageChoice)}.`);
   }
 
   function handleSelect(letter) {
@@ -136,7 +145,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
 
   function finishExam() {
     if (needsLanguageChoice) {
-      showToast('Escolha Inglês ou Espanhol antes de finalizar a prova.', 'error');
+      showToast('Escolha Inglês, Espanhol ou marque que não quer fazer língua estrangeira antes de finalizar.', 'error');
       return;
     }
 
@@ -177,17 +186,18 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
         <div className="question-map panel">
           <div className="question-map__title-row">
             <h2>Mapa da prova</h2>
-            {selectedLanguageLabel ? <span>{selectedLanguageLabel}</span> : null}
+            {selectedLanguageLabel ? <span className="question-map__language-pill">{selectedLanguageLabel}</span> : null}
           </div>
           {needsLanguageChoice ? (
-            <p className="question-map__loading">Escolha Inglês ou Espanhol para liberar as 5 questões de língua estrangeira e montar o restante da prova.</p>
+            <p className="question-map__loading">Escolha Inglês, Espanhol ou pule a língua estrangeira para montar a prova.</p>
           ) : hasQuestions ? (
             <>
-              {languageQuestionCount > 0 ? (
-                <div className="question-map__legend">
-                  <span><i aria-hidden="true" /> Língua estrangeira</span>
-                  <span><i aria-hidden="true" /> Respondida</span>
-                </div>
+              {attempt.languageChoice ? (
+                <p className="question-map__language-summary">
+                  {selectedNoLanguage
+                    ? 'Esta prova foi montada sem questões de língua estrangeira.'
+                    : `As questões 1 a ${languageQuestionCount || Math.min(5, questions.length)} são de ${selectedLanguageLabel}.`}
+                </p>
               ) : null}
               <div className="question-map__grid">
                 {questions.map((question, index) => {
@@ -262,19 +272,24 @@ function LanguageChoicePanel({ selectedLanguage, disabled, onSelect }) {
     <div className="language-choice-panel panel">
       <span className="eyebrow">Língua estrangeira</span>
       <div className="language-choice-panel__buttons">
-        {ENEM_LANGUAGE_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            className={`language-choice-panel__button ${selectedLanguage === option.value ? 'language-choice-panel__button--active' : ''}`}
-            type="button"
-            disabled={disabled && selectedLanguage !== option.value}
-            onClick={() => onSelect(option.value)}
-          >
-            {option.label}
-          </button>
-        ))}
+        {ENEM_LANGUAGE_CHOICE_OPTIONS.map((option) => {
+          const isActive = selectedLanguage === option.value;
+          const isNoneOption = option.value === ENEM_NO_LANGUAGE_CHOICE;
+
+          return (
+            <button
+              key={option.value}
+              className={`language-choice-panel__button ${isActive ? 'language-choice-panel__button--active' : ''} ${isNoneOption ? 'language-choice-panel__button--none' : ''}`}
+              type="button"
+              disabled={disabled && !isActive}
+              onClick={() => onSelect(option.value)}
+            >
+              {option.shortLabel || option.label}
+            </button>
+          );
+        })}
       </div>
-      <p>{selectedLanguage ? `As 5 primeiras questões serão de ${getLanguageLabel(selectedLanguage)}.` : 'Escolha uma opção para começar.'}</p>
+      <p>{getLanguageChoiceDescription(selectedLanguage)}</p>
     </div>
   );
 }
@@ -284,14 +299,27 @@ function LanguageChoiceCard({ onSelect }) {
     <article className="panel language-choice-card">
       <span className="eyebrow">Antes de começar</span>
       <h2>Escolha a língua estrangeira da prova</h2>
-      <p>Assim como no ENEM, você responde apenas uma opção: 5 questões de Inglês ou 5 questões de Espanhol. Depois disso, o sistema completa a prova até o total configurado.</p>
+      <p>Assim como no ENEM, você pode fazer Inglês, Espanhol ou seguir sem língua estrangeira nesta prática. Depois disso, o sistema monta a prova até o total configurado.</p>
       <div className="language-choice-card__actions">
-        {ENEM_LANGUAGE_OPTIONS.map((option) => (
-          <button className="button button--primary" type="button" key={option.value} onClick={() => onSelect(option.value)}>
-            Fazer {option.label}
-          </button>
-        ))}
+        {ENEM_LANGUAGE_CHOICE_OPTIONS.map((option) => {
+          const isNoneOption = option.value === ENEM_NO_LANGUAGE_CHOICE;
+          return (
+            <button className={`button ${isNoneOption ? 'button--ghost' : 'button--primary'}`} type="button" key={option.value} onClick={() => onSelect(option.value)}>
+              {isNoneOption ? option.label : `Fazer ${option.label}`}
+            </button>
+          );
+        })}
       </div>
     </article>
   );
+}
+
+function shouldWaitForLanguageChoice(attempt) {
+  return Boolean(attempt && attempt.sourceMode !== 'mock' && attempt.requiresLanguageChoice !== false && !attempt.languageChoice);
+}
+
+function getLanguageChoiceDescription(selectedLanguage) {
+  if (!selectedLanguage) return 'Escolha uma opção para começar.';
+  if (isNoLanguageChoice(selectedLanguage)) return 'Esta tentativa seguirá sem língua estrangeira.';
+  return `As 5 primeiras questões serão de ${getLanguageLabel(selectedLanguage)}.`;
 }
