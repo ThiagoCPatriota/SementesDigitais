@@ -105,7 +105,7 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
       durationMinutes,
       ownerEmail: student.email,
       classCode: config.classCode,
-      sourceMode: 'enem-dev',
+      sourceMode: 'enem-bank',
       requiresLanguageChoice: true,
       examYear: 'mixed',
       questionSeed: Date.now(),

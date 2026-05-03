@@ -1,4 +1,4 @@
-const ENEM_API_BASE_URL = 'https://api.enem.dev/v1';
+const ENEM_API_BASE_URL = getEnemApiBaseUrl();
 
 export const ENEM_AVAILABLE_YEARS = Array.from({ length: 15 }, (_, index) => 2023 - index);
 export const ENEM_NO_LANGUAGE_CHOICE = 'sem-lingua';
@@ -12,7 +12,8 @@ export const ENEM_LANGUAGE_CHOICE_OPTIONS = [
 ];
 
 const FOREIGN_LANGUAGE_QUESTION_COUNT = 5;
-const COMMON_QUESTIONS_START_OFFSET = 5;
+const FULL_EXAM_QUESTION_COUNT = 180;
+const REQUEST_TIMEOUT_MS = 15000;
 
 export const ENEM_AREA_OPTIONS = [
   { value: 'linguagens', label: 'Linguagens' },
@@ -26,12 +27,14 @@ const AREA_LABELS = ENEM_AREA_OPTIONS.reduce((accumulator, area) => {
   return accumulator;
 }, {});
 
+const examQuestionsCache = new Map();
+
 /**
  * Adapter para a API enem.dev.
  *
- * Para o MVP, o frontend busca as questões diretamente da API pública.
- * Em produção, o ideal é passar por um backend: o navegador recebe enunciado,
- * imagens e alternativas; o gabarito fica protegido no servidor.
+ * Em desenvolvimento, o Vite usa um proxy local em /enem-api para evitar bloqueios de CORS
+ * no navegador. Em produção, a URL pública continua disponível e pode ser sobrescrita por
+ * VITE_ENEM_API_BASE_URL caso o projeto tenha um backend/proxy próprio.
  */
 export async function fetchQuestionsFromEnemDev({ year = 2023, limit = 60, offset = 0, language = '' } = {}) {
   const page = await fetchQuestionsPage({ year, limit, offset, language });
@@ -46,70 +49,40 @@ export async function fetchQuestionSetFromEnemDev({
   includeLanguageChoice = true,
   areaDistribution = {}
 } = {}) {
-  const count = clampNumber(questionCount, 1, 180);
+  const count = clampNumber(questionCount, 1, FULL_EXAM_QUESTION_COUNT);
   const normalizedSeed = normalizeSeed(seed);
   const normalizedLanguage = normalizeLanguageChoice(language);
   const shouldIncludeLanguageChoice = Boolean(includeLanguageChoice && !isNoLanguageChoice(normalizedLanguage));
-  const languageQuery = shouldIncludeLanguageChoice ? normalizedLanguage : '';
+  const normalizedAreaDistribution = normalizeAreaDistribution(areaDistribution, count);
   const years = examYear === 'mixed'
     ? seededShuffle(ENEM_AVAILABLE_YEARS, normalizedSeed)
     : [Number(examYear) || 2023];
 
-  const questions = [];
-  const usedIds = new Set();
-  const normalizedAreaDistribution = normalizeAreaDistribution(areaDistribution, count);
+  const collectedQuestions = [];
 
-  if (shouldIncludeLanguageChoice) {
-    const languageYear = years[0] || 2023;
-    const languageQuestions = await fetchLanguageQuestions({
-      year: languageYear,
-      language: normalizedLanguage,
-      limit: Math.min(FOREIGN_LANGUAGE_QUESTION_COUNT, count)
+  for (const year of years) {
+    const examQuestions = await fetchFullExamQuestions({
+      year,
+      language: shouldIncludeLanguageChoice ? normalizedLanguage : ''
     });
 
-    languageQuestions.forEach((question) => addQuestion(questions, usedIds, {
-      ...question,
-      language: normalizedLanguage,
-      languageLabel: getLanguageLabel(normalizedLanguage),
-      isLanguageQuestion: true
-    }, count));
-  }
+    collectedQuestions.push(...examQuestions);
 
-  if (hasAreaDistribution(normalizedAreaDistribution)) {
-    const areaQuestions = await fetchDistributedQuestions({
-      years,
-      areaDistribution: normalizedAreaDistribution,
+    const selectedQuestions = selectQuestionsForExam({
+      questions: collectedQuestions,
+      count,
       seed: normalizedSeed,
-      language: languageQuery,
-      usedIds,
-      alreadySelectedQuestions: questions,
-      limit: count
+      language: normalizedLanguage,
+      includeLanguageChoice: shouldIncludeLanguageChoice,
+      areaDistribution: normalizedAreaDistribution
     });
 
-    areaQuestions.forEach((question) => addQuestion(questions, usedIds, question, count));
+    if (selectedQuestions.length >= count) {
+      return numberQuestions(selectedQuestions, count);
+    }
   }
 
-  const commonTarget = count - questions.length;
-  if (commonTarget > 0) {
-    const commonQuestions = await fetchCommonQuestions({
-      years,
-      count: commonTarget,
-      seed: normalizedSeed,
-      language: languageQuery,
-      usedIds
-    });
-
-    commonQuestions.forEach((question) => addQuestion(questions, usedIds, question, count));
-  }
-
-  if (questions.length < count) {
-    throw new Error('A API retornou menos questões do que o necessário para montar o simulado.');
-  }
-
-  return questions.slice(0, count).map((question, index) => ({
-    ...question,
-    number: index + 1
-  }));
+  throw new Error('A API retornou menos questões do que o necessário para montar o simulado. Tente reduzir a quantidade ou mudar a distribuição por área.');
 }
 
 export function normalizeLanguageChoice(value = 'ingles') {
@@ -125,6 +98,74 @@ export function getLanguageLabel(value = 'ingles') {
   const normalized = normalizeLanguageChoice(value);
   if (isNoLanguageChoice(normalized)) return 'Sem língua estrangeira';
   return normalized === 'espanhol' ? 'Espanhol' : 'Inglês';
+}
+
+function getEnemApiBaseUrl() {
+  const configuredUrl = import.meta.env?.VITE_ENEM_API_BASE_URL;
+  if (configuredUrl) return configuredUrl.replace(/\/$/, '');
+  return import.meta.env?.DEV ? '/enem-api/v1' : 'https://api.enem.dev/v1';
+}
+
+function selectQuestionsForExam({ questions, count, seed, language, includeLanguageChoice, areaDistribution }) {
+  const selected = [];
+  const usedIds = new Set();
+
+  if (includeLanguageChoice) {
+    const languageQuestions = questions
+      .filter((question) => question.language === language || question.isLanguageQuestion)
+      .sort((left, right) => {
+        const yearSort = Number(right.year || 0) - Number(left.year || 0);
+        if (yearSort !== 0) return yearSort;
+        return Number(left.originalIndex || left.number || 0) - Number(right.originalIndex || right.number || 0);
+      });
+
+    languageQuestions.slice(0, Math.min(FOREIGN_LANGUAGE_QUESTION_COUNT, count)).forEach((question) => {
+      addQuestion(selected, usedIds, {
+        ...question,
+        language,
+        languageLabel: getLanguageLabel(language),
+        isLanguageQuestion: true
+      }, count);
+    });
+  }
+
+  const commonQuestions = questions.filter((question) => !isForeignLanguageQuestion(question));
+
+  if (hasAreaDistribution(areaDistribution)) {
+    const selectedByArea = countSelectedQuestionsByArea(selected);
+
+    ENEM_AREA_OPTIONS.forEach((area) => {
+      const requestedForArea = Number(areaDistribution[area.value] || 0);
+      const alreadySelectedForArea = selectedByArea[area.value] || 0;
+      const target = Math.max(0, requestedForArea - alreadySelectedForArea);
+      if (!target) return;
+
+      const areaCandidates = seededShuffle(
+        commonQuestions.filter((question) => question.discipline === area.value && !usedIds.has(question.id)),
+        seed + area.value.length * 43
+      );
+
+      areaCandidates.slice(0, target).forEach((question) => addQuestion(selected, usedIds, question, count));
+    });
+  }
+
+  if (selected.length < count) {
+    const remainingCandidates = seededShuffle(
+      commonQuestions.filter((question) => !usedIds.has(question.id)),
+      seed + 997
+    );
+
+    remainingCandidates.forEach((question) => addQuestion(selected, usedIds, question, count));
+  }
+
+  return selected;
+}
+
+function numberQuestions(questions, count) {
+  return questions.slice(0, count).map((question, index) => ({
+    ...question,
+    number: index + 1
+  }));
 }
 
 function normalizeAreaDistribution(distribution = {}, limit = 90) {
@@ -153,110 +194,23 @@ function countSelectedQuestionsByArea(questions = []) {
   }, {});
 }
 
-async function fetchLanguageQuestions({ year, language, limit }) {
+async function fetchFullExamQuestions({ year, language = '' }) {
+  const normalizedLanguage = language && !isNoLanguageChoice(language) ? normalizeLanguageChoice(language) : '';
+  const cacheKey = `${year}:${normalizedLanguage || 'sem-parametro-lingua'}`;
+
+  if (examQuestionsCache.has(cacheKey)) {
+    return examQuestionsCache.get(cacheKey);
+  }
+
   const page = await fetchQuestionsPage({
     year,
-    limit: Math.max(1, limit),
+    limit: FULL_EXAM_QUESTION_COUNT,
     offset: 0,
-    language
+    language: normalizedLanguage
   });
 
-  return page.questions
-    .slice(0, limit)
-    .map((question) => ({
-      ...question,
-      language,
-      languageLabel: getLanguageLabel(language),
-      isLanguageQuestion: true
-    }));
-}
-
-async function fetchDistributedQuestions({ years, areaDistribution, seed, language, usedIds, alreadySelectedQuestions, limit }) {
-  const questions = [];
-  const selectedByArea = countSelectedQuestionsByArea(alreadySelectedQuestions);
-
-  for (const area of ENEM_AREA_OPTIONS.map((item) => item.value)) {
-    const requestedForArea = Number(areaDistribution[area] || 0);
-    const alreadySelectedForArea = selectedByArea[area] || 0;
-    const target = Math.max(0, requestedForArea - alreadySelectedForArea);
-    if (!target) continue;
-
-    const areaQuestions = await fetchAreaQuestions({
-      years,
-      area,
-      count: Math.min(target, limit - alreadySelectedQuestions.length - questions.length),
-      seed,
-      language,
-      usedIds
-    });
-
-    areaQuestions.forEach((question) => {
-      if (questions.length + alreadySelectedQuestions.length >= limit) return;
-      questions.push(question);
-    });
-  }
-
-  return questions;
-}
-
-async function fetchAreaQuestions({ years, area, count, seed, language, usedIds }) {
-  const questions = [];
-  const localIds = new Set();
-  let cycle = 0;
-
-  while (questions.length < count && cycle < years.length * 10) {
-    const year = years[cycle % years.length];
-    const chunkSize = Math.min(Math.max((count - questions.length) * 6, 24), 45);
-    const baseOffset = seededInteger(seed + cycle * 211 + area.length * 17, COMMON_QUESTIONS_START_OFFSET, 135);
-    const offset = Math.max(COMMON_QUESTIONS_START_OFFSET, Math.min(baseOffset, 180 - chunkSize));
-    const page = await fetchQuestionsPage({ year, limit: chunkSize, offset, language });
-
-    page.questions.forEach((question) => {
-      if (questions.length >= count) return;
-      if (question.discipline !== area) return;
-      if (isForeignLanguageQuestion(question)) return;
-      if (usedIds.has(question.id) || localIds.has(question.id)) return;
-      localIds.add(question.id);
-      questions.push({ ...question, isLanguageQuestion: false });
-    });
-
-    cycle += 1;
-  }
-
-  return questions;
-}
-
-async function fetchCommonQuestions({ years, count, seed, language, usedIds }) {
-  const questions = [];
-  const localIds = new Set();
-  let cycle = 0;
-
-  while (questions.length < count && cycle < years.length * 6) {
-    const year = years[cycle % years.length];
-    const remaining = count - questions.length;
-    const chunkSize = Math.min(Math.max(remaining + 6, 12), 35);
-
-    const metaPage = await fetchQuestionsPage({ year, limit: 1, offset: COMMON_QUESTIONS_START_OFFSET, language });
-    const total = Number(metaPage.metadata?.total || 180);
-    const maxOffset = Math.max(COMMON_QUESTIONS_START_OFFSET, total - chunkSize);
-    const offset = maxOffset > COMMON_QUESTIONS_START_OFFSET
-      ? seededInteger(seed + year * 97 + cycle * 31, COMMON_QUESTIONS_START_OFFSET, maxOffset)
-      : COMMON_QUESTIONS_START_OFFSET;
-
-    const page = await fetchQuestionsPage({ year, limit: chunkSize, offset, language });
-
-    page.questions.forEach((question) => {
-      if (questions.length >= count) return;
-      if (isForeignLanguageQuestion(question)) return;
-      if (usedIds.has(question.id) || localIds.has(question.id)) return;
-      localIds.add(question.id);
-      questions.push({ ...question, isLanguageQuestion: false });
-    });
-
-    cycle += 1;
-  }
-
-  return questions;
+  examQuestionsCache.set(cacheKey, page.questions);
+  return page.questions;
 }
 
 async function fetchQuestionsPage({ year, limit, offset, language = '' }) {
@@ -268,19 +222,37 @@ async function fetchQuestionsPage({ year, limit, offset, language = '' }) {
   if (language && !isNoLanguageChoice(language)) params.set('language', normalizeLanguageChoice(language));
 
   const url = `${ENEM_API_BASE_URL}/exams/${year}/questions?${params.toString()}`;
-  const response = await fetch(url);
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw new Error('Não foi possível buscar questões reais na API enem.dev.');
+  try {
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      credentials: 'omit',
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`A API enem.dev respondeu com status ${response.status}.`);
+    }
+
+    const payload = await response.json();
+    const rawQuestions = Array.isArray(payload?.questions) ? payload.questions : Array.isArray(payload) ? payload : [];
+
+    return {
+      metadata: payload?.metadata ?? { limit, offset, total: rawQuestions.length, hasMore: false },
+      questions: rawQuestions.map((question, index) => sanitizeQuestion(question, index + offset))
+    };
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error('A API enem.dev demorou demais para responder. Tente novamente em instantes.');
+    }
+
+    throw new Error(error?.message || 'Não foi possível buscar questões reais na API enem.dev.');
+  } finally {
+    window.clearTimeout(timeoutId);
   }
-
-  const payload = await response.json();
-  const rawQuestions = Array.isArray(payload?.questions) ? payload.questions : Array.isArray(payload) ? payload : [];
-
-  return {
-    metadata: payload?.metadata ?? { limit, offset, total: rawQuestions.length, hasMore: false },
-    questions: rawQuestions.map((question, index) => sanitizeQuestion(question, index + offset))
-  };
 }
 
 function sanitizeQuestion(question, index) {

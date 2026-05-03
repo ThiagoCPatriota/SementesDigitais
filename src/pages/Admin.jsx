@@ -3,7 +3,7 @@ import { saveExamConfig } from '../services/examService.js';
 import { createActivity, getActivities, getActivityResponses, updateActivityStatus } from '../services/activityService.js';
 
 export function Admin({ config, onConfigSaved, showToast, navigate }) {
-  const [form, setForm] = useState({ ...config, publishNow: true });
+  const [form, setForm] = useState({ sourceMode: 'enem-bank', examYear: 'mixed', ...config, publishNow: true });
   const [activities, setActivities] = useState(() => getActivities());
   const [selectedActivityId, setSelectedActivityId] = useState(() => getActivities()[0]?.id ?? null);
 
@@ -81,11 +81,11 @@ export function Admin({ config, onConfigSaved, showToast, navigate }) {
 
           <label>
             Fonte de questões
-            <select name="sourceMode" value={form.sourceMode || 'mock'} onChange={updateField}>
-              <option value="mock">Banco interno de questões</option>
-              <option value="enem-dev" disabled>API enem.dev — integração futura</option>
+            <select name="sourceMode" value={form.sourceMode || 'enem-bank'} onChange={updateField}>
+              <option value="enem-bank">Banco ENEM no Supabase — questões reais</option>
+              <option value="mock">Banco interno de demonstração</option>
             </select>
-            <small>Na versão com backend, o gabarito deve ficar protegido no servidor.</small>
+            <small>Por padrão, a prova usa as questões reais já importadas para o Supabase/PostgreSQL, sem depender da API externa durante a prova.</small>
           </label>
 
           <label className="check-row">

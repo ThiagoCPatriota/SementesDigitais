@@ -12,7 +12,7 @@ const DEFAULT_AREA_FORM = ENEM_AREA_OPTIONS.reduce((accumulator, area) => {
 
 export function CreateSimulation({ config, onConfigSaved, showToast, navigate }) {
   const [form, setForm] = useState(() => ({
-    sourceMode: 'enem-dev',
+    sourceMode: 'enem-bank',
     examYear: 'mixed',
     ...config,
     questionCount: Math.min(Number(config.questionCount || 60), MAX_QUESTIONS),
@@ -136,11 +136,11 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
           <div className="form-grid">
             <label>
               Fonte de questões
-              <select name="sourceMode" value={form.sourceMode || 'enem-dev'} onChange={updateField}>
-                <option value="enem-dev">API enem.dev — questões reais do ENEM</option>
+              <select name="sourceMode" value={form.sourceMode || 'enem-bank'} onChange={updateField}>
+                <option value="enem-bank">Banco ENEM no Supabase — questões reais</option>
                 <option value="mock">Banco interno de demonstração</option>
               </select>
-              <small>O app busca enunciados, alternativas e imagens direto da API quando essa opção estiver ativa.</small>
+              <small>O app busca enunciados, alternativas e imagens do Supabase/PostgreSQL quando essa opção estiver ativa.</small>
             </label>
 
             <label>

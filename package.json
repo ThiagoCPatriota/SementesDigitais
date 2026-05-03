@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "import:enem": "node scripts/import-enem-questions.mjs"
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",

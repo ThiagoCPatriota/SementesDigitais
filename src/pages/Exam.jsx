@@ -7,6 +7,7 @@ import { ENEM_LANGUAGE_CHOICE_OPTIONS, ENEM_NO_LANGUAGE_CHOICE, getLanguageLabel
 import {
   finalizeAttempt,
   getAnswers,
+  getCachedExamQuestions,
   getExamQuestions,
   saveAnswer,
   setAttemptLanguageChoice
@@ -16,7 +17,7 @@ import { secondsUntil } from '../utils/timer.js';
 export function Exam({ attempt, result, navigate, showToast, refreshAttempt, refreshResult }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState(() => getAnswers());
-  const [questions, setQuestions] = useState(() => shouldWaitForLanguageChoice(attempt) ? [] : getExamQuestions());
+  const [questions, setQuestions] = useState(() => shouldWaitForLanguageChoice(attempt) ? [] : getCachedExamQuestions());
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [questionError, setQuestionError] = useState('');
   const [remainingSeconds, setRemainingSeconds] = useState(() => attempt ? secondsUntil(attempt.deadlineAt) : 0);
@@ -58,8 +59,8 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
         refreshAttempt();
       } catch (error) {
         if (!isMounted) return;
-        setQuestionError(error?.message || 'Não foi possível carregar as questões reais do ENEM.');
-        showToast('Não foi possível carregar as questões reais agora.', 'error');
+        setQuestionError(error?.message || 'Não foi possível carregar as questões reais do banco ENEM.');
+        showToast('Não foi possível carregar as questões reais no banco agora.', 'error');
       } finally {
         if (isMounted) setLoadingQuestions(false);
       }
@@ -221,7 +222,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
               </div>
             </>
           ) : (
-            <p className="question-map__loading">Carregando questões reais do ENEM...</p>
+            <p className="question-map__loading">Carregando questões reais do banco ENEM...</p>
           )}
         </div>
       </aside>
@@ -241,8 +242,8 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
         ) : loadingQuestions ? (
           <article className="panel question-loading-card">
             <span className="eyebrow">Banco ENEM</span>
-            <h2>Buscando questões reais da API...</h2>
-            <p>Estamos carregando enunciados completos, alternativas e imagens quando a questão possuir arquivo vinculado.</p>
+            <h2>Buscando questões reais no banco ENEM...</h2>
+            <p>Estamos carregando do Supabase/PostgreSQL os enunciados completos, alternativas e imagens quando a questão possuir arquivo vinculado.</p>
           </article>
         ) : questionError ? (
           <article className="notice-card notice-card--soft question-loading-card">
