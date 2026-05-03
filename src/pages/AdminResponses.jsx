@@ -7,7 +7,8 @@ import {
   syncActivitiesFromCloud,
   syncActivityAttemptsFromCloud
 } from '../services/activityService.js';
-import { fetchQuestionSetFromEnemDev, getLanguageLabel } from '../services/enemApi.js';
+import { getLanguageLabel } from '../services/enemApi.js';
+import { fetchQuestionSetFromQuestionBank } from '../services/questionBankService.js';
 
 export function AdminResponses({ activityId, navigate }) {
   const [activity, setActivity] = useState(() => getActivityById(activityId));
@@ -16,6 +17,8 @@ export function AdminResponses({ activityId, navigate }) {
   const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [questionError, setQuestionError] = useState('');
   const [syncingCloud, setSyncingCloud] = useState(false);
+  const [selectedResponseIndex, setSelectedResponseIndex] = useState(0);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -65,6 +68,13 @@ export function AdminResponses({ activityId, navigate }) {
     };
   }, [activity?.id, responses.length]);
 
+  useEffect(() => {
+    setSelectedResponseIndex((current) => {
+      if (responses.length === 0) return 0;
+      return Math.min(current, responses.length - 1);
+    });
+  }, [responses.length]);
+
   if (!activity) {
     return (
       <section className="section-header admin-responses-page__empty">
@@ -77,6 +87,17 @@ export function AdminResponses({ activityId, navigate }) {
   }
 
   const dashboard = buildDashboard(responses);
+  const selectedResponse = responses[selectedResponseIndex] ?? responses[0] ?? null;
+
+  function goToPreviousStudent() {
+    if (responses.length === 0) return;
+    setSelectedResponseIndex((current) => (current - 1 + responses.length) % responses.length);
+  }
+
+  function goToNextStudent() {
+    if (responses.length === 0) return;
+    setSelectedResponseIndex((current) => (current + 1) % responses.length);
+  }
 
   return (
     <>
@@ -86,11 +107,14 @@ export function AdminResponses({ activityId, navigate }) {
           <div>
             <h1>{activity.title}</h1>
             <p>
-              {activity.questionCount} questões • {activity.durationMinutes} minutos • {formatQuestionSource(activity)} • Criado em {formatDate(activity.createdAt)}
+              {activity.questionCount} questões base • +5 com Inglês/Espanhol • {activity.durationMinutes} minutos • {formatQuestionSource(activity)} • Criado em {formatDate(activity.createdAt)}
             </p>
             {syncingCloud ? <p className="admin-sync-note">Sincronizando respostas do Supabase...</p> : null}
           </div>
-          <button className="button button--ghost" type="button" onClick={() => navigate('admin')}>Voltar</button>
+          <div className="admin-responses-page__actions">
+            <button className="button button--ghost" type="button" onClick={() => navigate('admin')}>Voltar para administração</button>
+            <button className="button button--primary" type="button" onClick={() => navigate('criar')}>Criar novo simulado</button>
+          </div>
         </div>
       </section>
 
@@ -117,6 +141,43 @@ export function AdminResponses({ activityId, navigate }) {
         </article>
       </section>
 
+      {selectedResponse ? (
+        <section className="panel admin-student-focus">
+          <div className="admin-student-focus__header">
+            <div>
+              <span className="eyebrow">Aluno selecionado</span>
+              <h2>{selectedResponse.student?.name || 'Aluno'}</h2>
+              <p>{selectedResponse.student?.email || 'E-mail não informado'} • {formatStatus(selectedResponse.status)}</p>
+            </div>
+            <div className="admin-student-focus__navigation">
+              <button className="button button--ghost" type="button" onClick={goToPreviousStudent}>Anterior</button>
+              <span>{selectedResponseIndex + 1} de {responses.length}</span>
+              <button className="button button--ghost" type="button" onClick={goToNextStudent}>Próximo</button>
+            </div>
+          </div>
+
+          <div className="summary-list admin-student-focus__details">
+            <span><strong>Telefone:</strong> {selectedResponse.student?.phone || 'Não informado'}</span>
+            <span><strong>Escola/turma:</strong> {selectedResponse.student?.classGroup || 'Não informado'}</span>
+            <span><strong>Início:</strong> {formatDateTime(selectedResponse.startedAt)}</span>
+            <span><strong>Finalização:</strong> {selectedResponse.submittedAt ? formatDateTime(selectedResponse.submittedAt) : 'Em andamento'}</span>
+            {selectedResponse.languageChoice ? <span><strong>Língua:</strong> {getLanguageLabel(selectedResponse.languageChoice)}</span> : null}
+          </div>
+
+          <div className="admin-response-metrics admin-student-focus__metrics">
+            <span><strong>{selectedResponse.answeredCount ?? 0}</strong> respondidas</span>
+            <span><strong>{selectedResponse.correctCount ?? '—'}</strong> acertos</span>
+            <span><strong>{selectedResponse.wrongCount ?? '—'}</strong> erros</span>
+            <span><strong>{selectedResponse.blankCount ?? '—'}</strong> em branco</span>
+          </div>
+        </section>
+      ) : (
+        <section className="notice-card notice-card--soft admin-student-focus-empty">
+          <strong>Nenhum aluno iniciou este simulado ainda</strong>
+          <p>Assim que alguém abrir a prova, o aluno aparecerá aqui com botões de anterior e próximo.</p>
+        </section>
+      )}
+
       <section className="panel admin-general-dashboard">
         <div>
           <span className="eyebrow">Dashboard geral</span>
@@ -128,51 +189,6 @@ export function AdminResponses({ activityId, navigate }) {
           <MetricBar label="Erros" value={dashboard.wrongCount} total={dashboard.totalFinishedQuestions} />
           <MetricBar label="Em branco" value={dashboard.blankCount} total={dashboard.totalFinishedQuestions} />
         </div>
-      </section>
-
-      <section className="admin-responses-section">
-        <div className="section-header section-header--compact">
-          <span className="eyebrow">Alunos e resultados</span>
-          <h2>Desempenho individual</h2>
-          <p>Confira os acertos, erros, questões em branco e o percentual de cada aluno neste simulado.</p>
-        </div>
-
-        {responses.length === 0 ? (
-          <article className="notice-card notice-card--soft">
-            <strong>Nenhum aluno iniciou esta atividade ainda</strong>
-            <p>Quando os alunos clicarem em iniciar, eles aparecerão neste painel de respostas.</p>
-          </article>
-        ) : (
-          <div className="admin-response-grid">
-            {responses.map((response) => (
-              <article className="panel admin-response-card" key={response.attemptId}>
-                <div className="admin-response-card__top">
-                  <div>
-                    <span className={`badge ${response.result ? '' : 'badge--muted'}`}>{formatStatus(response.status)}</span>
-                    <h3>{response.student?.name || 'Aluno'}</h3>
-                    <p>{response.student?.email || 'E-mail não informado'}</p>
-                  </div>
-                  <strong className="admin-response-card__score">{response.result ? `${response.scorePercent}%` : '—'}</strong>
-                </div>
-
-                <div className="summary-list admin-response-card__info">
-                  <span><strong>Telefone:</strong> {response.student?.phone || 'Não informado'}</span>
-                  <span><strong>Escola/turma:</strong> {response.student?.classGroup || 'Não informado'}</span>
-                  <span><strong>Início:</strong> {formatDateTime(response.startedAt)}</span>
-                  <span><strong>Finalização:</strong> {response.submittedAt ? formatDateTime(response.submittedAt) : 'Em andamento'}</span>
-                  {response.languageChoice ? <span><strong>Língua:</strong> {getLanguageLabel(response.languageChoice)}</span> : null}
-                </div>
-
-                <div className="admin-response-metrics">
-                  <span><strong>{response.answeredCount ?? 0}</strong> respondidas</span>
-                  <span><strong>{response.correctCount ?? '—'}</strong> acertos</span>
-                  <span><strong>{response.wrongCount ?? '—'}</strong> erros</span>
-                  <span><strong>{response.blankCount ?? '—'}</strong> em branco</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
       </section>
 
       <section className="admin-answer-key-section">
@@ -310,15 +326,16 @@ async function buildAnswerKey(activity, responses) {
     ? savedSnapshot
     : activity.sourceMode === 'mock'
       ? mockQuestions.slice(0, questionCount)
-      : await fetchQuestionSetFromEnemDev({
+      : await fetchQuestionSetFromQuestionBank({
           questionCount,
           examYear: activity.examYear || 'mixed',
           seed: activity.questionSeed || activity.createdAt || activity.id,
           language: languageChoice,
-          includeLanguageChoice: activity.requiresLanguageChoice !== false
+          includeLanguageChoice: activity.requiresLanguageChoice !== false,
+          areaDistribution: activity.areaDistribution || {}
         });
 
-  return questions.slice(0, questionCount).map((question, index) => ({
+  return questions.map((question, index) => ({
     ...question,
     number: index + 1,
     correctText: sanitizeDisplayText(question.alternatives.find((alternative) => alternative.letter === question.correctAlternative)?.text) || 'Alternativa com imagem ou texto não encontrado'
@@ -347,7 +364,7 @@ function findSavedQuestionSnapshot(activity, responses) {
 
 function formatQuestionSource(activity) {
   if (activity.sourceMode === 'mock') return 'Banco interno';
-  return activity.examYear === 'mixed' || !activity.examYear ? 'API ENEM • anos mistos' : `API ENEM • ${activity.examYear}`;
+  return activity.examYear === 'mixed' || !activity.examYear ? 'Banco ENEM Supabase • anos mistos' : `Banco ENEM Supabase • ${activity.examYear}`;
 }
 
 function formatDate(value) {

@@ -105,7 +105,7 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
       durationMinutes,
       ownerEmail: student.email,
       classCode: config.classCode,
-      sourceMode: 'enem-dev',
+      sourceMode: 'enem-bank',
       requiresLanguageChoice: true,
       examYear: 'mixed',
       questionSeed: Date.now(),
@@ -134,7 +134,7 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
       <section className="section-header create-personal-header">
         <span className="eyebrow">Criar atividade pessoal</span>
         <h1>Monte sua prática ENEM</h1>
-        <p>Escolha o total de questões, o tempo, a distribuição por área e, ao iniciar, defina se quer fazer Inglês, Espanhol ou seguir sem língua estrangeira.</p>
+        <p>Escolha o total base de questões, o tempo e a distribuição por área. Se você escolher Inglês ou Espanhol ao iniciar, o sistema adiciona 5 questões extras no começo da prova.</p>
       </section>
 
       <section className="form-layout create-personal-layout">
@@ -144,14 +144,18 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
             <p>Essa atividade fica salva no seu histórico e pode ser retomada enquanto estiver em andamento.</p>
           </div>
 
+          <div className="language-extra-note">
+            <strong>Inglês/Espanhol são adicionais:</strong> se você montar uma prática com {form.questionCount || 0} questões e escolher uma língua estrangeira depois, a prova terá {Number(form.questionCount || 0) + 5} questões no total. Se pular a língua estrangeira, fica só com {form.questionCount || 0}.
+          </div>
+
           <label>
             Nome da atividade
             <input name="title" value={form.title} onChange={updateField} placeholder="Ex.: Revisão de Natureza" required />
           </label>
 
-          <div className="form-grid">
+          <div className="form-grid form-grid--personal-basics">
             <label>
-              Quantidade de questões
+              Quantidade base de questões
               <input
                 type="number"
                 min="1"
@@ -196,7 +200,7 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
               <div>
                 <span className="eyebrow">Distribuição por área</span>
                 <h3>Escolha as áreas da sua prática</h3>
-                <p>O total escolhido pode ser dividido manualmente ou distribuído automaticamente entre Matemática, Linguagens, Humanas e Natureza.</p>
+                <p>O total base escolhido pode ser dividido manualmente ou distribuído automaticamente entre Matemática, Linguagens, Humanas e Natureza. As 5 questões de Inglês/Espanhol entram como bônus no início apenas se você escolher uma língua estrangeira.</p>
               </div>
               <button className="button button--ghost button--compact" type="button" onClick={resetDistribution}>
                 Distribuir automático
@@ -242,7 +246,9 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
           </div>
           <h2>Resumo da prática</h2>
           <div className="summary-list">
-            <span><strong>Questões:</strong> {form.questionCount}</span>
+            <span><strong>Questões base:</strong> {form.questionCount}</span>
+            <span><strong>Com língua:</strong> {Number(form.questionCount || 0) + 5}</span>
+            <span><strong>Sem língua:</strong> {form.questionCount}</span>
             <span><strong>Tempo:</strong> {form.durationMinutes} minutos</span>
             <span><strong>Distribuídas:</strong> {totalByArea}</span>
           </div>

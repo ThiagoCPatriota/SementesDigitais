@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { APP_CONFIG } from '../config.js';
 import { Icon } from '../components/Icon.jsx';
 import { getCurrentAttempt, startAttempt } from '../services/examService.js';
 import {
-  getActivities,
   getPersonalActivities,
   getPublishedActivities,
   getStudentClassActivityAttempt,
@@ -12,6 +11,9 @@ import {
   restoreClassActivityResult,
   restorePersonalActivityAttempt,
   restorePersonalActivityResult,
+  syncActivitiesFromCloud,
+  syncActivityAttemptsFromCloud,
+  syncPersonalActivitiesFromCloud,
   updatePersonalActivity
 } from '../services/activityService.js';
 
@@ -19,8 +21,8 @@ export function Activities({ student, session, config, navigate, showToast, refr
   const isAdmin = session.role === 'admin';
   const [refreshKey, setRefreshKey] = useState(0);
   const classActivities = useMemo(
-    () => (isAdmin ? getActivities() : getPublishedActivities()),
-    [isAdmin, refreshKey]
+    () => getPublishedActivities(),
+    [refreshKey]
   );
 
   const personalActivities = useMemo(
@@ -32,6 +34,26 @@ export function Activities({ student, session, config, navigate, showToast, refr
     () => getPublishedActivities()[0]?.id ?? null,
     [refreshKey]
   );
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function syncCloudData() {
+      await Promise.all([
+        syncActivitiesFromCloud(),
+        syncActivityAttemptsFromCloud(),
+        syncPersonalActivitiesFromCloud(student.email)
+      ]);
+
+      if (isMounted) setRefreshKey((current) => current + 1);
+    }
+
+    syncCloudData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [student.email]);
 
   function startClassActivity(activity) {
     const studentRecord = getStudentClassActivityAttempt(activity.id, student.email);
@@ -140,19 +162,19 @@ export function Activities({ student, session, config, navigate, showToast, refr
   return (
     <>
       <section className="section-header dashboard-header">
-        <span className="eyebrow">Área de atividades</span>
+        <span className="eyebrow">Mural</span>
         <h1>Olá, {student.name.split(' ')[0]}!</h1>
         <p>
           {isAdmin
-            ? 'Veja as atividades cadastradas e acesse o painel administrativo para acompanhar os alunos.'
-            : 'Acesse atividades publicadas pela equipe, consulte resultados anteriores ou crie práticas pessoais para estudar no seu ritmo.'}
+            ? 'Veja exatamente os simulados publicados que estão aparecendo para os alunos.'
+            : 'Acesse os simulados publicados pela equipe, consulte resultados anteriores ou crie práticas pessoais para estudar no seu ritmo.'}
         </p>
       </section>
 
-      {!isAdmin && classActivities.length === 0 ? (
+      {classActivities.length === 0 ? (
         <section className="notice-card notice-card--soft activity-empty-card">
-          <strong>Nenhuma atividade da turma publicada no momento</strong>
-          <p>{APP_CONFIG.activities.emptyStudentMessage}</p>
+          <strong>Nenhum simulado publicado no mural</strong>
+          <p>{isAdmin ? 'Crie e publique um simulado na aba Criar para ele aparecer aqui no mural dos alunos.' : APP_CONFIG.activities.emptyStudentMessage}</p>
         </section>
       ) : null}
 
@@ -184,7 +206,7 @@ export function Activities({ student, session, config, navigate, showToast, refr
 
               {isAdmin ? (
                 <button className="button button--ghost button--full" type="button" onClick={() => navigate('admin')}>
-                  Ver no painel
+                  Gerenciar
                 </button>
               ) : hasResult ? (
                 <button className="button button--ghost button--full" type="button" onClick={() => viewClassResult(activity)}>
@@ -260,13 +282,6 @@ export function Activities({ student, session, config, navigate, showToast, refr
         ) : null}
       </section>
 
-      {isAdmin ? (
-        <section className="notice-card admin-shortcut-card">
-          <strong>Acesso administrativo liberado</strong>
-          <p>Crie, publique ou oculte atividades no painel administrativo. Lá também ficam os resultados enviados pelos alunos.</p>
-          <button className="button button--primary" type="button" onClick={() => navigate('admin')}>Abrir painel administrativo</button>
-        </section>
-      ) : null}
     </>
   );
 }

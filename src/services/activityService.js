@@ -1,5 +1,14 @@
 import { APP_CONFIG } from '../config.js';
 import { load, save } from './storage.js';
+import {
+  fetchCloudActivities,
+  fetchCloudActivityAttempts,
+  fetchCloudPersonalActivities,
+  upsertCloudActivity,
+  upsertCloudActivityAttempt,
+  upsertCloudPersonalActivity,
+  updateCloudActivityStatus
+} from './supabaseDataService.js';
 
 const CLASS_ACTIVITIES_KEY = 'classActivities';
 const PERSONAL_ACTIVITIES_KEY = 'personalActivities';
@@ -14,10 +23,40 @@ export function getPublishedActivities() {
   return getActivities().filter((activity) => activity.status === 'published');
 }
 
+export async function syncActivitiesFromCloud() {
+  const cloudActivities = await fetchCloudActivities();
+  if (Array.isArray(cloudActivities)) {
+    save(CLASS_ACTIVITIES_KEY, cloudActivities);
+  }
+  return getActivities();
+}
+
+export async function syncActivityAttemptsFromCloud(activityId = '') {
+  const cloudAttempts = await fetchCloudActivityAttempts(activityId);
+  if (Array.isArray(cloudAttempts)) {
+    if (activityId) {
+      const localAttempts = getActivityAttempts().filter((attempt) => attempt.activityId !== activityId);
+      save(CLASS_ACTIVITY_ATTEMPTS_KEY, sortByDateDesc([...cloudAttempts, ...localAttempts], 'startedAt'));
+    } else {
+      save(CLASS_ACTIVITY_ATTEMPTS_KEY, sortByDateDesc(cloudAttempts, 'startedAt'));
+    }
+  }
+  return activityId ? getActivityResponses(activityId) : getActivityAttempts();
+}
+
+export async function syncPersonalActivitiesFromCloud(ownerEmail) {
+  const cloudActivities = await fetchCloudPersonalActivities(ownerEmail);
+  if (Array.isArray(cloudActivities)) {
+    save(getPersonalActivitiesKey(ownerEmail), cloudActivities);
+  }
+  return getPersonalActivities(ownerEmail);
+}
+
 export function createActivity(data) {
   const activity = normalizeClassActivity(data);
   const activities = [activity, ...getActivities()];
   save(CLASS_ACTIVITIES_KEY, activities);
+  mirrorCloudWrite(upsertCloudActivity(activity), 'salvar atividade no Supabase');
   return activity;
 }
 
@@ -29,6 +68,7 @@ export function updateActivityStatus(activityId, status) {
       : activity
   );
   save(CLASS_ACTIVITIES_KEY, activities);
+  mirrorCloudWrite(updateCloudActivityStatus(activityId, normalizedStatus), 'atualizar status da atividade no Supabase');
   return sortByDateDesc(activities);
 }
 
@@ -94,6 +134,7 @@ export function recordClassActivityStart(activityConfig, attempt) {
   const withoutCurrent = attempts.filter((item) => item.id !== record.id && item.attemptId !== record.attemptId);
   const next = [record, ...withoutCurrent];
   save(CLASS_ACTIVITY_ATTEMPTS_KEY, next);
+  mirrorCloudWrite(upsertCloudActivityAttempt(record), 'salvar início da tentativa no Supabase');
   return record;
 }
 
@@ -110,6 +151,7 @@ export function updateClassActivityAttemptProgress(attempt, answersSnapshot = {}
 
   const record = {
     ...existing,
+    totalQuestions: getAttemptQuestionTotal(attempt, existing.totalQuestions),
     answeredCount: Object.keys(answersSnapshot || {}).length,
     languageChoice: attempt.languageChoice || existing.languageChoice || '',
     attemptSnapshot: { ...attempt, status: existing.status || attempt.status },
@@ -119,6 +161,7 @@ export function updateClassActivityAttemptProgress(attempt, answersSnapshot = {}
 
   const next = [record, ...attempts.filter((item) => item.id !== record.id && item.attemptId !== record.attemptId)];
   save(CLASS_ACTIVITY_ATTEMPTS_KEY, next);
+  mirrorCloudWrite(upsertCloudActivityAttempt(record), 'salvar progresso da tentativa no Supabase');
   return record;
 }
 
@@ -162,6 +205,7 @@ export function updateClassActivityAttemptResult(attempt, result, answersSnapsho
   const withoutCurrent = attempts.filter((item) => item.id !== record.id && item.attemptId !== record.attemptId);
   const next = [record, ...withoutCurrent];
   save(CLASS_ACTIVITY_ATTEMPTS_KEY, next);
+  mirrorCloudWrite(upsertCloudActivityAttempt(record), 'salvar resultado da tentativa no Supabase');
   return record;
 }
 
@@ -194,6 +238,7 @@ export function createPersonalActivity(data) {
   const activity = normalizePersonalActivity(data);
   const activities = [activity, ...getPersonalActivities(data.ownerEmail)];
   save(getPersonalActivitiesKey(data.ownerEmail), activities);
+  mirrorCloudWrite(upsertCloudPersonalActivity(activity), 'salvar atividade pessoal no Supabase');
   return activity;
 }
 
@@ -204,7 +249,11 @@ export function updatePersonalActivity(ownerEmail, activityId, patch) {
       : activity
   );
   save(getPersonalActivitiesKey(ownerEmail), activities);
-  return activities.find((activity) => activity.id === activityId) ?? null;
+  const updatedActivity = activities.find((activity) => activity.id === activityId) ?? null;
+  if (updatedActivity) {
+    mirrorCloudWrite(upsertCloudPersonalActivity(updatedActivity), 'salvar atualização da atividade pessoal no Supabase');
+  }
+  return updatedActivity;
 }
 
 export function updatePersonalActivityProgress(attempt, answersSnapshot = {}) {
@@ -217,6 +266,7 @@ export function updatePersonalActivityProgress(attempt, answersSnapshot = {}) {
     attemptId: attempt.id,
     startedAt: attempt.startedAt,
     deadlineAt: attempt.deadlineAt,
+    totalQuestions: getAttemptQuestionTotal(attempt, undefined),
     attemptSnapshot: attempt,
     answersSnapshot
   });
@@ -256,6 +306,20 @@ export function isActivityExpired(activity) {
   return Date.now() > new Date(activity.deadlineAt).getTime();
 }
 
+
+
+function getAttemptQuestionTotal(attempt, fallback) {
+  const snapshotCount = Array.isArray(attempt?.questionsSnapshot) ? attempt.questionsSnapshot.length : 0;
+  if (snapshotCount > 0) return snapshotCount;
+  return Number(fallback || attempt?.questionCount || APP_CONFIG.defaultExam.questionCount);
+}
+
+function mirrorCloudWrite(promise, label) {
+  Promise.resolve(promise).catch((error) => {
+    console.warn(`${label} falhou. O cache local foi preservado.`, error);
+  });
+}
+
 function normalizeClassActivity(data) {
   const createdAt = new Date().toISOString();
   const title = data.title?.trim() || APP_CONFIG.defaultExam.title;
@@ -266,7 +330,7 @@ function normalizeClassActivity(data) {
     classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(data.questionCount) || APP_CONFIG.defaultExam.questionCount,
-    sourceMode: data.sourceMode || 'mock',
+    sourceMode: data.sourceMode || 'enem-bank',
     examYear: data.examYear || 'mixed',
     questionSeed: data.questionSeed || createdAt,
     requiresLanguageChoice: data.requiresLanguageChoice !== false,
@@ -289,7 +353,7 @@ function normalizePersonalActivity(data) {
     classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || fallback.durationMinutes,
     questionCount: Number(data.questionCount) || fallback.questionCount,
-    sourceMode: data.sourceMode || 'mock',
+    sourceMode: data.sourceMode || 'enem-bank',
     examYear: data.examYear || 'mixed',
     questionSeed: data.questionSeed || createdAt,
     requiresLanguageChoice: data.requiresLanguageChoice !== false,

@@ -7,7 +7,9 @@ import { Access } from './pages/Access.jsx';
 import { Account } from './pages/Account.jsx';
 import { Activities } from './pages/Activities.jsx';
 import { CreatePersonalActivity } from './pages/CreatePersonalActivity.jsx';
+import { CreateSimulation } from './pages/CreateSimulation.jsx';
 import { Admin } from './pages/Admin.jsx';
+import { AdminResponses } from './pages/AdminResponses.jsx';
 import { Exam } from './pages/Exam.jsx';
 import { Result } from './pages/Result.jsx';
 import { clearAttemptData, load } from './services/storage.js';
@@ -102,9 +104,9 @@ export default function App() {
   const safeSession = getStoredAuthSession();
 
   const protectedRoute = !PUBLIC_ROUTES.has(route);
-  const requiresAdmin = route === 'admin';
+  const requiresAdmin = route === 'admin' || route.startsWith('respostas/');
   const canUseProtected = Boolean(safeSession && student);
-  const activeRoute = route === 'acesso' ? 'acesso' : route;
+  const activeRoute = getActiveRoute(route);
 
   let content;
 
@@ -159,6 +161,10 @@ export default function App() {
 function renderRoute(props) {
   const { route } = props;
 
+  if (route.startsWith('respostas/')) {
+    return <AdminResponses activityId={route.replace('respostas/', '')} navigate={props.navigate} />;
+  }
+
   switch (route) {
     case 'home':
       return <Home config={props.config} navigate={props.navigate} />;
@@ -170,6 +176,9 @@ function renderRoute(props) {
     case 'conta':
       return <Account student={props.student} session={props.session} onSignOut={props.onSignOut} />;
     case 'criar':
+      if (props.session?.role === 'admin') {
+        return <CreateSimulation config={props.config} onConfigSaved={props.onConfigSaved} showToast={props.showToast} navigate={props.navigate} />;
+      }
       return <CreatePersonalActivity student={props.student} config={props.config} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} refreshResult={props.refreshResult} />;
     case 'atividades':
       return <Activities student={props.student} session={props.session} config={props.config} navigate={props.navigate} showToast={props.showToast} refreshAttempt={props.refreshAttempt} refreshResult={props.refreshResult} />;
@@ -184,8 +193,15 @@ function renderRoute(props) {
   }
 }
 
+function getActiveRoute(route) {
+  if (route === 'acesso') return 'acesso';
+  if (route.startsWith('respostas/')) return 'admin';
+  return route;
+}
+
 function normalizeRoute(route) {
   if (route === 'cadastro') return 'acesso';
+  if (route.startsWith('respostas:')) return route.replace('respostas:', 'respostas/');
   if (!route) return 'home';
   return route;
 }

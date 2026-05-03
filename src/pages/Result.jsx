@@ -1,5 +1,5 @@
 import { EmptyState } from '../components/Layout.jsx';
-import { getAnswers, getExamQuestions } from '../services/examService.js';
+import { getAnswers, getCachedExamQuestions } from '../services/examService.js';
 
 export function Result({ result, attempt, navigate }) {
   if (!result || !attempt) {
@@ -60,7 +60,7 @@ function PersonalAnswerReview({ result, attempt }) {
     ? result.questionsSnapshot
     : Array.isArray(attempt?.questionsSnapshot) && attempt.questionsSnapshot.length > 0
       ? attempt.questionsSnapshot
-      : getExamQuestions();
+      : getCachedExamQuestions();
   const answers = getAnswers();
 
   return (
