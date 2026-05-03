@@ -10,17 +10,15 @@ const emptyRegisterForm = {
   phone: '',
   classGroup: '',
   password: '',
-  classCode: '',
   terms: false
 };
 
 const emptyLoginForm = {
   email: '',
-  password: '',
-  classCode: ''
+  password: ''
 };
 
-export function Access({ config, onAuthenticated, showToast }) {
+export function Access({ onAuthenticated, showToast }) {
   const [tab, setTab] = useState('register');
   const [loading, setLoading] = useState(false);
   const [registerForm, setRegisterForm] = useState(emptyRegisterForm);
@@ -42,7 +40,7 @@ export function Access({ config, onAuthenticated, showToast }) {
   async function handleRegister(event) {
     event.preventDefault();
     const data = registerForm;
-    const validationError = validateAccessData(data, config, true);
+    const validationError = validateAccessData(data, true);
     if (validationError) return showToast(validationError, 'error');
 
     setLoading(true);
@@ -54,7 +52,7 @@ export function Access({ config, onAuthenticated, showToast }) {
         classGroup: data.classGroup.trim(),
         password: data.password
       });
-      const session = persistAuthenticatedAccess(authResult, { classCode: data.classCode.trim().toUpperCase(), terms: data.terms });
+      const session = persistAuthenticatedAccess(authResult, { terms: data.terms });
       resetAccessForms();
       showToast(authResult.needsEmailConfirmation ? 'Conta criada. Verifique seu e-mail, se a confirmação estiver ativa.' : 'Conta criada com sucesso.');
       onAuthenticated(session, session.role === 'admin' ? 'atividades' : 'criar');
@@ -75,13 +73,13 @@ export function Access({ config, onAuthenticated, showToast }) {
   async function handleLogin(event) {
     event.preventDefault();
     const data = loginForm;
-    const validationError = validateAccessData(data, config, false);
+    const validationError = validateAccessData(data, false);
     if (validationError) return showToast(validationError, 'error');
 
     setLoading(true);
     try {
       const authResult = await loginStudentAccount({ email: data.email.trim(), password: data.password });
-      const session = persistAuthenticatedAccess(authResult, { classCode: data.classCode.trim().toUpperCase(), terms: true });
+      const session = persistAuthenticatedAccess(authResult, { terms: true });
       resetAccessForms();
       showToast(session.role === 'admin' ? 'Login administrativo realizado.' : 'Login realizado com sucesso.');
       onAuthenticated(session, session.role === 'admin' ? 'atividades' : 'criar');
@@ -169,17 +167,6 @@ export function Access({ config, onAuthenticated, showToast }) {
                 required
               />
             </label>
-            <label>
-              Código da atividade
-              <input
-                name="register-classCode"
-                value={registerForm.classCode}
-                onChange={(event) => updateRegisterField('classCode', event.target.value)}
-                placeholder="Código informado pela equipe"
-                autoComplete="off"
-                required
-              />
-            </label>
             <label className="check-row">
               <input
                 type="checkbox"
@@ -223,17 +210,6 @@ export function Access({ config, onAuthenticated, showToast }) {
                 required
               />
             </label>
-            <label>
-              Código da atividade
-              <input
-                name="login-classCode"
-                value={loginForm.classCode}
-                onChange={(event) => updateLoginField('classCode', event.target.value)}
-                placeholder="Código informado pela equipe"
-                autoComplete="off"
-                required
-              />
-            </label>
             <button className="button button--primary button--full" type="submit" disabled={loading}>{loading ? 'Entrando...' : 'Entrar e continuar'}</button>
           </form>
         )}
@@ -259,23 +235,21 @@ export function Access({ config, onAuthenticated, showToast }) {
   );
 }
 
-function validateAccessData(data, config, isRegister) {
+function validateAccessData(data, isRegister) {
   if (isRegister && !data.name?.trim()) return 'Informe seu nome completo.';
   if (!isValidEmail(data.email)) return 'Informe um e-mail válido.';
   if (isRegister && !isValidPhoneShape(data.phone)) return 'Informe um telefone válido com DDD.';
   if (!data.password || data.password.length < 6) return 'A senha precisa ter pelo menos 6 caracteres.';
-  if (data.classCode.trim().toUpperCase() !== config.classCode.toUpperCase()) return 'Código da atividade incorreto.';
   return '';
 }
 
-function persistAuthenticatedAccess(authResult, { classCode, terms }) {
+function persistAuthenticatedAccess(authResult, { terms }) {
   const student = authResult.student;
   const normalizedStudent = {
     name: student.name?.trim() || student.email.split('@')[0],
     email: student.email.trim(),
     phone: student.phone?.trim() || '',
     classGroup: student.classGroup?.trim() || '',
-    classCode,
     terms: Boolean(terms),
     authUserId: student.authUserId ?? null,
     createdAt: new Date().toISOString()

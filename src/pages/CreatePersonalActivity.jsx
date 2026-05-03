@@ -4,7 +4,7 @@ import { Icon } from '../components/Icon.jsx';
 import { startAttempt } from '../services/examService.js';
 import { createPersonalActivity, updatePersonalActivity } from '../services/activityService.js';
 
-export function CreatePersonalActivity({ student, config, navigate, showToast, refreshAttempt, refreshResult }) {
+export function CreatePersonalActivity({ student, navigate, showToast, refreshAttempt, refreshResult }) {
   const [form, setForm] = useState(() => {
     const questionCount = APP_CONFIG.personalActivity.questionCount;
     return {
@@ -104,7 +104,6 @@ export function CreatePersonalActivity({ student, config, navigate, showToast, r
       questionCount,
       durationMinutes,
       ownerEmail: student.email,
-      classCode: config.classCode,
       sourceMode: 'enem-bank',
       requiresLanguageChoice: true,
       examYear: 'mixed',
