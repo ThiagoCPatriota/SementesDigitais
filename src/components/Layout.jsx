@@ -9,13 +9,14 @@ export function Layout({ route, session, children, navigate }) {
   const items = isSignedIn
     ? isAdmin
       ? [
-          ['atividades', 'Atividades'],
+          ['atividades', 'Mural'],
+          ['criar', 'Criar'],
           ['admin', 'Administração'],
           ['conta', 'Conta']
         ]
       : [
           ['criar', 'Criar'],
-          ['atividades', 'Atividades'],
+          ['atividades', 'Mural'],
           ['prova', 'Prova'],
           ['conta', 'Conta']
         ]

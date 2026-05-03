@@ -269,28 +269,31 @@ function persistQuestionsSnapshot(attempt, questions) {
 
 function buildMockExamQuestions(attempt = null) {
   const config = getExamConfig();
-  const questionCount = Number(attempt?.questionCount || config.questionCount || APP_CONFIG.defaultExam.questionCount);
+  const baseQuestionCount = Number(attempt?.questionCount || config.questionCount || APP_CONFIG.defaultExam.questionCount);
   const areaDistribution = normalizeAreaDistribution(attempt?.areaDistribution || config.areaDistribution);
-
-  const selectedQuestions = hasDistribution(areaDistribution)
-    ? selectQuestionsByArea(areaDistribution, questionCount)
-    : takeQuestions(mockQuestions, questionCount);
   const languageChoice = attempt?.languageChoice || '';
-  const shouldMarkLanguageQuestions = Boolean(languageChoice && !isNoLanguageChoice(languageChoice));
+  const shouldAddLanguageQuestions = Boolean(languageChoice && !isNoLanguageChoice(languageChoice));
 
-  return selectedQuestions.slice(0, questionCount).map((question, index) => {
-    const isLanguageQuestion = shouldMarkLanguageQuestions && index < Math.min(FOREIGN_LANGUAGE_COUNT, questionCount);
+  const regularQuestions = hasDistribution(areaDistribution)
+    ? selectQuestionsByArea(areaDistribution, baseQuestionCount)
+    : takeQuestions(mockQuestions, baseQuestionCount);
 
-    return {
-      ...question,
-      id: `${question.id || 'questao'}-slot-${index + 1}`,
-      number: index + 1,
-      area: isLanguageQuestion ? 'Linguagens' : question.area,
-      language: isLanguageQuestion ? languageChoice : question.language,
-      languageLabel: isLanguageQuestion ? getLanguageLabel(languageChoice) : question.languageLabel,
-      isLanguageQuestion: Boolean(isLanguageQuestion || question.isLanguageQuestion)
-    };
-  });
+  const languageQuestions = shouldAddLanguageQuestions
+    ? takeQuestions(mockQuestions, FOREIGN_LANGUAGE_COUNT).map((question, index) => ({
+        ...question,
+        id: `${question.id || 'questao'}-language-${languageChoice}-${index + 1}`,
+        area: 'Linguagens',
+        language: languageChoice,
+        languageLabel: getLanguageLabel(languageChoice),
+        isLanguageQuestion: true
+      }))
+    : [];
+
+  return [...languageQuestions, ...regularQuestions.slice(0, baseQuestionCount)].map((question, index) => ({
+    ...question,
+    id: question.id?.includes('-slot-') ? question.id : `${question.id || 'questao'}-slot-${index + 1}`,
+    number: index + 1
+  }));
 }
 
 function normalizeAreaDistribution(distribution = {}) {

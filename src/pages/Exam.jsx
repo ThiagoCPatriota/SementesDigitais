@@ -14,6 +14,8 @@ import {
 } from '../services/examService.js';
 import { secondsUntil } from '../utils/timer.js';
 
+const FOREIGN_LANGUAGE_ADDITIONAL_COUNT = 5;
+
 export function Exam({ attempt, result, navigate, showToast, refreshAttempt, refreshResult }) {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState(() => getAnswers());
@@ -29,6 +31,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
   const hasQuestions = questions.length > 0;
   const selectedLanguageLabel = attempt?.languageChoice ? getLanguageLabel(attempt.languageChoice) : '';
   const selectedNoLanguage = Boolean(attempt?.languageChoice && isNoLanguageChoice(attempt.languageChoice));
+  const expectedQuestionCount = hasQuestions ? questions.length : getExpectedQuestionCount(attempt);
 
   const languageQuestionCount = useMemo(
     () => questions.filter((question) => question.isLanguageQuestion || question.language === 'ingles' || question.language === 'espanhol').length,
@@ -174,7 +177,7 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
     <section className="exam-layout">
       <aside className="exam-sidebar">
         <Timer deadlineAt={attempt.deadlineAt} remainingSeconds={remainingSeconds} />
-        <Progress answeredCount={answeredCount} totalQuestions={hasQuestions ? questions.length : Number(attempt.questionCount || 0)} />
+        <Progress answeredCount={answeredCount} totalQuestions={expectedQuestionCount} />
 
         {requiresLanguageChoice ? (
           <LanguageChoicePanel
@@ -232,7 +235,12 @@ export function Exam({ attempt, result, navigate, showToast, refreshAttempt, ref
           <div>
             <span className="eyebrow">{attempt.examTitle}</span>
             <h1>Olá, {attempt.student.name.split(' ')[0]}!</h1>
-            {selectedLanguageLabel ? <p className="exam-toolbar__language">Língua estrangeira: <strong>{selectedLanguageLabel}</strong></p> : null}
+            {selectedLanguageLabel ? (
+              <p className="exam-toolbar__language">
+                Língua estrangeira: <strong>{selectedLanguageLabel}</strong>
+                {!selectedNoLanguage ? <span> (+{FOREIGN_LANGUAGE_ADDITIONAL_COUNT} questões adicionais)</span> : null}
+              </p>
+            ) : null}
           </div>
           <button className="button button--danger" type="button" onClick={finishExam} disabled={!hasQuestions}>Finalizar prova</button>
         </div>
@@ -300,7 +308,7 @@ function LanguageChoiceCard({ onSelect }) {
     <article className="panel language-choice-card">
       <span className="eyebrow">Antes de começar</span>
       <h2>Escolha a língua estrangeira da prova</h2>
-      <p>Assim como no ENEM, você pode fazer Inglês, Espanhol ou seguir sem língua estrangeira nesta prática. Depois disso, o sistema monta a prova até o total configurado.</p>
+      <p>Assim como no ENEM, você pode fazer Inglês, Espanhol ou seguir sem língua estrangeira nesta prática. Inglês e Espanhol entram como 5 questões adicionais no início da prova; se você pular, fica apenas o total configurado.</p>
       <div className="language-choice-card__actions">
         {ENEM_LANGUAGE_CHOICE_OPTIONS.map((option) => {
           const isNoneOption = option.value === ENEM_NO_LANGUAGE_CHOICE;
@@ -319,8 +327,15 @@ function shouldWaitForLanguageChoice(attempt) {
   return Boolean(attempt && attempt.sourceMode !== 'mock' && attempt.requiresLanguageChoice !== false && !attempt.languageChoice);
 }
 
+
+function getExpectedQuestionCount(attempt) {
+  const baseCount = Number(attempt?.questionCount || 0);
+  if (!attempt?.languageChoice || isNoLanguageChoice(attempt.languageChoice)) return baseCount;
+  return baseCount + FOREIGN_LANGUAGE_ADDITIONAL_COUNT;
+}
+
 function getLanguageChoiceDescription(selectedLanguage) {
   if (!selectedLanguage) return 'Escolha uma opção para começar.';
   if (isNoLanguageChoice(selectedLanguage)) return 'Esta tentativa seguirá sem língua estrangeira.';
-  return `As 5 primeiras questões serão de ${getLanguageLabel(selectedLanguage)}.`;
+  return `As 5 primeiras questões serão adicionais de ${getLanguageLabel(selectedLanguage)}.`;
 }

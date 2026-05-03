@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { saveExamConfig } from '../services/examService.js';
 import { createActivity } from '../services/activityService.js';
-import { ENEM_AREA_OPTIONS } from '../services/enemApi.js';
+import { ENEM_AREA_OPTIONS, ENEM_AVAILABLE_YEARS } from '../services/enemApi.js';
 
 const MAX_QUESTIONS = 90;
 const MAX_DURATION_MINUTES = 330;
@@ -12,9 +12,9 @@ const DEFAULT_AREA_FORM = ENEM_AREA_OPTIONS.reduce((accumulator, area) => {
 
 export function CreateSimulation({ config, onConfigSaved, showToast, navigate }) {
   const [form, setForm] = useState(() => ({
-    sourceMode: 'enem-bank',
     examYear: 'mixed',
     ...config,
+    sourceMode: 'enem-bank',
     questionCount: Math.min(Number(config.questionCount || 60), MAX_QUESTIONS),
     durationMinutes: Math.min(Number(config.durationMinutes || 300), MAX_DURATION_MINUTES),
     areaDistribution: areaDistributionToForm(config.areaDistribution),
@@ -47,6 +47,20 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
     }));
   }
 
+  function distributeAutomatically() {
+    const total = Number(form.questionCount || 0);
+    const base = Math.floor(total / ENEM_AREA_OPTIONS.length);
+    const remainder = total % ENEM_AREA_OPTIONS.length;
+
+    setForm((current) => ({
+      ...current,
+      areaDistribution: ENEM_AREA_OPTIONS.reduce((accumulator, area, index) => {
+        accumulator[area.value] = base + (index < remainder ? 1 : 0);
+        return accumulator;
+      }, {})
+    }));
+  }
+
   function clearAreaDistribution() {
     setForm((current) => ({ ...current, areaDistribution: { ...DEFAULT_AREA_FORM } }));
   }
@@ -68,7 +82,7 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
     }
 
     if (allocatedTotal > normalizedQuestionCount) {
-      showToast('A soma das áreas não pode passar do total de questões do simulado.', 'error');
+      showToast('A soma das áreas não pode passar do total base de questões do simulado.', 'error');
       return;
     }
 
@@ -77,6 +91,7 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
     try {
       const activity = await createActivity({
         ...form,
+        sourceMode: 'enem-bank',
         questionCount: normalizedQuestionCount,
         durationMinutes: normalizedDuration,
         areaDistribution: cleanAreaDistribution(form.areaDistribution),
@@ -85,16 +100,17 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
 
       const updatedConfig = saveExamConfig(activity);
       onConfigSaved(updatedConfig);
-      showToast(activity.status === 'published' ? 'Simulado criado e publicado no Supabase.' : 'Simulado criado como rascunho no Supabase.');
+      showToast(activity.status === 'published' ? 'Simulado criado e publicado no mural.' : 'Simulado criado como rascunho.');
       setForm((current) => ({
         ...current,
         title: '',
+        sourceMode: 'enem-bank',
         publishNow: true,
         questionSeed: Date.now()
       }));
       navigate('admin');
     } catch (error) {
-      showToast(error?.message || 'Não foi possível salvar o simulado no Supabase.', 'error');
+      showToast(error?.message || 'Não foi possível salvar o simulado.', 'error');
     } finally {
       setIsSaving(false);
     }
@@ -103,51 +119,50 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
   return (
     <>
       <section className="section-header create-simulation-header">
-        <span className="eyebrow">Criar simulado</span>
-        <h1>Gerenciar novo simulado</h1>
-        <p>Monte a atividade da turma, escolha a quantidade total e distribua as questões por área do ENEM quando quiser uma prova mais direcionada.</p>
+        <span className="eyebrow">Criar</span>
+        <h1>Gerenciar simulado</h1>
+        <p>Monte o simulado da turma com banco ENEM no Supabase, duração, quantidade base e distribuição por área. Inglês e Espanhol continuam sendo +5 questões extras quando o aluno escolher uma língua estrangeira.</p>
         <button className="button button--ghost" type="button" onClick={() => navigate('admin')}>Ver simulados da turma</button>
       </section>
 
       <section className="form-layout create-simulation-layout">
         <form className="panel form-card create-simulation-form" onSubmit={handleSubmit}>
           <div className="form-card__intro">
-            <h2>Nova atividade</h2>
+            <h2>Novo simulado</h2>
             <p>Defina os dados principais do simulado que será disponibilizado para os estudantes.</p>
           </div>
 
-          <label>Nome da atividade<input name="title" value={form.title} onChange={updateField} placeholder="Ex.: Simulado de Matemática 01" required /></label>
+          <div className="language-extra-note">
+            <strong>Língua estrangeira é adicional:</strong> um simulado de {form.questionCount || 0} questões vira {Number(form.questionCount || 0) + 5} questões se o aluno escolher Inglês ou Espanhol. Se ele marcar “Não quero fazer nessa prova”, continua com {form.questionCount || 0}.
+          </div>
 
-          <div className="form-grid">
+          <label>Nome da atividade<input name="title" value={form.title} onChange={updateField} placeholder="Ex.: Simulado Sementes Digitais 01" required /></label>
+
+          <div className="form-grid form-grid--fixed-basics">
             <label>
-              Quantidade de questões
+              Quantidade base de questões
               <input type="number" min="5" max={MAX_QUESTIONS} name="questionCount" value={form.questionCount} onChange={updateField} required />
-              <small>Limite configurado para até {MAX_QUESTIONS} questões objetivas, como um dia completo do ENEM.</small>
+              <small>Inglês/Espanhol acrescentam +5 quando escolhidos pelo aluno.</small>
             </label>
             <label>
               Duração em minutos
               <input type="number" min="1" max={MAX_DURATION_MINUTES} name="durationMinutes" value={form.durationMinutes} onChange={updateField} required />
-              <small>Use até {MAX_DURATION_MINUTES} minutos quando quiser simular o maior tempo oficial.</small>
+              <small>Tempo total para o simulado, incluindo a língua estrangeira quando houver.</small>
             </label>
           </div>
 
-          <label>Código da atividade<input name="classCode" value={form.classCode} onChange={updateField} required /></label>
-
-          <div className="form-grid">
-            <label>
-              Fonte de questões
-              <select name="sourceMode" value={form.sourceMode || 'enem-bank'} onChange={updateField}>
-                <option value="enem-bank">Banco ENEM no Supabase — questões reais</option>
-                <option value="mock">Banco interno de demonstração</option>
-              </select>
-              <small>O app busca enunciados, alternativas e imagens do Supabase/PostgreSQL quando essa opção estiver ativa.</small>
-            </label>
+          <div className="form-grid form-grid--fixed-basics">
+            <div className="readonly-field-card">
+              <span>Fonte de questões</span>
+              <strong>Banco ENEM no Supabase</strong>
+              <small>O fluxo normal da prova busca a tabela enem_questions. A API externa fica apenas no script de importação.</small>
+            </div>
 
             <label>
               Ano da prova
-              <select name="examYear" value={form.examYear || 'mixed'} onChange={updateField} disabled={(form.sourceMode || 'enem-dev') === 'mock'}>
-                <option value="mixed">Misturar anos 2009–2023</option>
-                {Array.from({ length: 15 }, (_, index) => 2023 - index).map((year) => (
+              <select name="examYear" value={form.examYear || 'mixed'} onChange={updateField}>
+                <option value="mixed">Misturar anos 2013–2023</option>
+                {ENEM_AVAILABLE_YEARS.map((year) => (
                   <option key={year} value={year}>ENEM {year}</option>
                 ))}
               </select>
@@ -159,10 +174,13 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
             <div className="area-distribution-card__header">
               <div>
                 <span className="eyebrow">Distribuição por área</span>
-                <h3>Escolha quantas questões virão de cada área</h3>
-                <p>Deixe tudo zerado para o sistema misturar automaticamente. A área de Linguagens considera as 5 questões de Inglês/Espanhol quando a escolha de língua estiver ativa.</p>
+                <h3>Defina as áreas do ENEM</h3>
+                <p>Escolha quantas questões base virão de Matemática, Linguagens, Humanas e Natureza. As 5 questões de Inglês/Espanhol entram no começo da prova somente quando o aluno escolher uma língua.</p>
               </div>
-              <button className="button button--ghost button--compact" type="button" onClick={clearAreaDistribution}>Limpar</button>
+              <div className="area-distribution-card__actions">
+                <button className="button button--ghost button--compact" type="button" onClick={distributeAutomatically}>Distribuir automático</button>
+                <button className="button button--ghost button--compact" type="button" onClick={clearAreaDistribution}>Limpar</button>
+              </div>
             </div>
 
             <div className="area-distribution-grid">
@@ -186,25 +204,25 @@ export function CreateSimulation({ config, onConfigSaved, showToast, navigate })
               <span><strong>{remainingQuestions}</strong> restantes para mistura automática</span>
             </div>
             {hasAreaDistribution && !exceedsTotal ? (
-              <p className="area-distribution-hint">O sistema tenta respeitar essa distribuição. Se a API não retornar questões suficientes para alguma área, ele completa com questões disponíveis para não quebrar a prova.</p>
+              <p className="area-distribution-hint">O sistema tenta respeitar essa distribuição. Se o banco não tiver questões suficientes para alguma área, a prova exibirá um erro claro para importar mais questões ou ajustar a configuração.</p>
             ) : null}
           </section>
 
           <label className="check-row">
             <input type="checkbox" name="publishNow" checked={Boolean(form.publishNow)} onChange={updateField} />
-            <span>Publicar atividade para os alunos assim que salvar.</span>
+            <span>Publicar no mural dos alunos assim que salvar.</span>
           </label>
 
-          <button className="button button--primary button--full" type="submit" disabled={isSaving}>{isSaving ? 'Salvando no Supabase...' : 'Criar simulado'}</button>
+          <button className="button button--primary button--full" type="submit" disabled={isSaving}>{isSaving ? 'Salvando...' : 'Criar simulado'}</button>
         </form>
 
         <aside className="panel side-note create-simulation-note">
-          <span className="eyebrow">Organização</span>
-          <h2>Como usar essa aba</h2>
+          <span className="eyebrow">Fluxo modular</span>
+          <h2>Como ficou organizado</h2>
           <div className="summary-list">
-            <span><strong>1.</strong> Crie o simulado aqui.</span>
-            <span><strong>2.</strong> Publique para aparecer aos alunos.</span>
-            <span><strong>3.</strong> Volte para Administração para ocultar ou ver respostas.</span>
+            <span><strong>Mural:</strong> mostra aos alunos os simulados publicados.</span>
+            <span><strong>Criar:</strong> cadastra e configura novos simulados.</span>
+            <span><strong>Administração:</strong> oculta, publica e abre respostas.</span>
           </div>
           <button className="button button--ghost button--full" type="button" onClick={() => navigate('admin')}>Ir para Administração</button>
         </aside>

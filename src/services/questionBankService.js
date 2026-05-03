@@ -1,7 +1,6 @@
 import {
   ENEM_AREA_OPTIONS,
   ENEM_AVAILABLE_YEARS,
-  ENEM_NO_LANGUAGE_CHOICE,
   getLanguageLabel,
   isNoLanguageChoice,
   normalizeLanguageChoice
@@ -11,7 +10,22 @@ import { getSupabaseClient, hasSupabaseConfig } from './supabaseClient.js';
 const QUESTION_BANK_TABLE = 'enem_questions';
 const FOREIGN_LANGUAGE_QUESTION_COUNT = 5;
 const MAX_BANK_ROWS_PER_PAGE = 1000;
-const MAX_BANK_PAGES = 5;
+const MAX_BANK_PAGES = 8;
+const QUESTION_COLUMNS = [
+  'id',
+  'enem_id',
+  'exam_year',
+  'original_index',
+  'title',
+  'discipline',
+  'area_label',
+  'language',
+  'context',
+  'statement',
+  'alternatives',
+  'correct_alternative',
+  'files'
+].join(', ');
 
 export async function fetchQuestionSetFromQuestionBank({
   questionCount = 60,
@@ -25,42 +39,48 @@ export async function fetchQuestionSetFromQuestionBank({
     throw new Error('O Supabase ainda não está configurado. Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY para usar o banco ENEM.');
   }
 
-  const count = clampNumber(questionCount, 1, 180);
+  const baseQuestionCount = clampNumber(questionCount, 1, 180);
   const normalizedSeed = normalizeSeed(seed);
   const normalizedLanguage = normalizeLanguageChoice(language);
   const shouldIncludeLanguageChoice = Boolean(includeLanguageChoice && !isNoLanguageChoice(normalizedLanguage));
-  const normalizedAreaDistribution = normalizeAreaDistribution(areaDistribution, count);
+  const languageQuestionCount = shouldIncludeLanguageChoice ? FOREIGN_LANGUAGE_QUESTION_COUNT : 0;
+  const totalQuestionCount = baseQuestionCount + languageQuestionCount;
   const years = examYear === 'mixed'
     ? seededShuffle(ENEM_AVAILABLE_YEARS, normalizedSeed)
-    : [Number(examYear) || 2023];
+    : [Number(examYear) || 2013];
 
   const collectedQuestions = [];
+  let lastSelectionError = '';
 
   for (const year of years) {
     const yearQuestions = await fetchQuestionsFromSupabaseBank(year);
     collectedQuestions.push(...yearQuestions);
 
-    const selectedQuestions = selectQuestionsForExam({
+    const selection = selectQuestionsForExam({
       questions: collectedQuestions,
-      count,
+      baseQuestionCount,
       seed: normalizedSeed,
       language: normalizedLanguage,
       includeLanguageChoice: shouldIncludeLanguageChoice,
-      areaDistribution: normalizedAreaDistribution
+      areaDistribution
     });
 
-    if (selectedQuestions.length >= count) {
-      return numberQuestions(selectedQuestions, count);
+    if (selection.ok) {
+      return numberQuestions(selection.questions, totalQuestionCount);
     }
+
+    lastSelectionError = selection.error;
   }
 
-  const availableCount = collectedQuestions.length;
-  const languageHint = shouldIncludeLanguageChoice ? ` com ${getLanguageLabel(normalizedLanguage)}` : '';
-  throw new Error(
-    availableCount === 0
-      ? 'O banco ENEM do Supabase ainda está vazio. Execute o SQL da tabela e rode npm run import:enem para importar as questões.'
-      : `O banco ENEM tem ${availableCount} questão(ões), mas não conseguiu montar uma prova de ${count} questão(ões)${languageHint}. Importe mais anos ou reduza a quantidade.`
-  );
+  throw new Error(buildInsufficientQuestionsMessage({
+    availableCount: collectedQuestions.length,
+    baseQuestionCount,
+    languageQuestionCount,
+    totalQuestionCount,
+    language: normalizedLanguage,
+    includeLanguageChoice: shouldIncludeLanguageChoice,
+    lastSelectionError
+  }));
 }
 
 export async function getQuestionBankStatus() {
@@ -93,7 +113,7 @@ async function fetchQuestionsFromSupabaseBank(year) {
 
     const { data, error } = await supabase
       .from(QUESTION_BANK_TABLE)
-      .select('id, enem_id, exam_year, original_index, title, discipline, area_label, language, context, statement, alternatives, correct_alternative, files')
+      .select(QUESTION_COLUMNS)
       .eq('exam_year', year)
       .order('original_index', { ascending: true })
       .range(from, to);
@@ -112,12 +132,13 @@ async function fetchQuestionsFromSupabaseBank(year) {
 
 function formatQuestionBankError(error) {
   const message = error?.message || String(error || 'erro desconhecido');
+  const lowerMessage = message.toLowerCase();
 
-  if (message.toLowerCase().includes('does not exist') || error?.code === '42P01') {
+  if (lowerMessage.includes('does not exist') || error?.code === '42P01') {
     return 'A tabela enem_questions ainda não existe no Supabase. Execute o arquivo supabase/enem-question-bank.sql no SQL Editor.';
   }
 
-  if (message.toLowerCase().includes('permission denied') || message.toLowerCase().includes('row-level security')) {
+  if (lowerMessage.includes('permission denied') || lowerMessage.includes('row-level security')) {
     return 'O Supabase recusou a leitura da tabela enem_questions. Execute o SQL de políticas públicas de leitura do arquivo supabase/enem-question-bank.sql.';
   }
 
@@ -129,79 +150,126 @@ function rowToQuestion(row) {
 
   const language = normalizeStoredLanguage(row.language || '');
   const alternatives = normalizeAlternatives(row.alternatives);
+  const correctAlternative = normalizeCorrectAlternative(row.correct_alternative, alternatives);
+
+  if (!alternatives.length || !correctAlternative) return null;
 
   return {
     id: row.id,
+    enemId: row.enem_id || '',
     number: Number(row.original_index || 0),
     originalIndex: Number(row.original_index || 0),
     title: row.title || `Questão ${row.original_index || ''}`.trim(),
-    year: row.exam_year,
+    year: Number(row.exam_year || 0) || '',
     area: row.area_label || getAreaLabel(row.discipline) || 'ENEM',
-    discipline: row.discipline || '',
+    discipline: normalizeDiscipline(row.discipline),
     language,
     languageLabel: language ? getLanguageLabel(language) : '',
     isLanguageQuestion: Boolean(language),
     context: row.context || '',
     statement: row.statement || '',
     alternatives,
-    correctAlternative: row.correct_alternative || alternatives.find((alternative) => alternative.isCorrect)?.letter || null,
-    files: Array.isArray(row.files) ? row.files.filter(Boolean) : []
+    correctAlternative,
+    files: normalizeFiles(row.files)
   };
 }
 
-function selectQuestionsForExam({ questions, count, seed, language, includeLanguageChoice, areaDistribution }) {
+function selectQuestionsForExam({ questions, baseQuestionCount, seed, language, includeLanguageChoice, areaDistribution }) {
   const selected = [];
   const usedIds = new Set();
+  const baseCount = Math.max(0, Math.trunc(Number(baseQuestionCount || 0)));
+  const languageTarget = includeLanguageChoice ? FOREIGN_LANGUAGE_QUESTION_COUNT : 0;
+  const totalTarget = baseCount + languageTarget;
 
-  if (includeLanguageChoice) {
-    const languageQuestions = questions
-      .filter((question) => question.language === language || question.isLanguageQuestion && question.language === language)
-      .sort((left, right) => {
-        const yearSort = Number(right.year || 0) - Number(left.year || 0);
-        if (yearSort !== 0) return yearSort;
-        return Number(left.originalIndex || left.number || 0) - Number(right.originalIndex || right.number || 0);
-      });
+  if (languageTarget > 0) {
+    const languageCandidates = seededShuffle(
+      questions.filter((question) => question.language === language && !usedIds.has(question.id)),
+      seed + language.length * 127
+    ).sort((left, right) => {
+      const yearSort = Number(right.year || 0) - Number(left.year || 0);
+      if (yearSort !== 0) return yearSort;
+      return Number(left.originalIndex || left.number || 0) - Number(right.originalIndex || right.number || 0);
+    });
 
-    languageQuestions.slice(0, Math.min(FOREIGN_LANGUAGE_QUESTION_COUNT, count)).forEach((question) => {
+    if (languageCandidates.length < languageTarget) {
+      return {
+        ok: false,
+        questions: [],
+        error: `há apenas ${languageCandidates.length} questão(ões) de ${getLanguageLabel(language)}, mas são necessárias ${languageTarget}`
+      };
+    }
+
+    languageCandidates.slice(0, languageTarget).forEach((question) => {
       addQuestion(selected, usedIds, {
         ...question,
         language,
         languageLabel: getLanguageLabel(language),
         isLanguageQuestion: true
-      }, count);
+      }, totalTarget);
     });
   }
 
+  if (baseCount <= 0) return { ok: selected.length === totalTarget, questions: selected, error: '' };
+
   const commonQuestions = questions.filter((question) => !isForeignLanguageQuestion(question));
+  const normalizedAreaDistribution = normalizeAreaDistributionForSlots(areaDistribution, baseCount);
 
-  if (hasAreaDistribution(areaDistribution)) {
-    const selectedByArea = countSelectedQuestionsByArea(selected);
-
-    ENEM_AREA_OPTIONS.forEach((area) => {
-      const requestedForArea = Number(areaDistribution[area.value] || 0);
-      const alreadySelectedForArea = selectedByArea[area.value] || 0;
-      const target = Math.max(0, requestedForArea - alreadySelectedForArea);
-      if (!target) return;
+  if (hasAreaDistribution(normalizedAreaDistribution)) {
+    for (const area of ENEM_AREA_OPTIONS) {
+      const target = Number(normalizedAreaDistribution[area.value] || 0);
+      if (!target) continue;
 
       const areaCandidates = seededShuffle(
         commonQuestions.filter((question) => question.discipline === area.value && !usedIds.has(question.id)),
         seed + area.value.length * 43
       );
 
-      areaCandidates.slice(0, target).forEach((question) => addQuestion(selected, usedIds, question, count));
-    });
+      if (areaCandidates.length < target) {
+        return {
+          ok: false,
+          questions: [],
+          error: `faltam questões de ${area.label}; disponíveis ${areaCandidates.length}, necessárias ${target}`
+        };
+      }
+
+      areaCandidates.slice(0, target).forEach((question) => addQuestion(selected, usedIds, question, totalTarget));
+    }
   }
 
-  if (selected.length < count) {
+  if (selected.length < totalTarget) {
+    const missing = totalTarget - selected.length;
     const remainingCandidates = seededShuffle(
       commonQuestions.filter((question) => !usedIds.has(question.id)),
       seed + 997
     );
 
-    remainingCandidates.forEach((question) => addQuestion(selected, usedIds, question, count));
+    if (remainingCandidates.length < missing) {
+      return {
+        ok: false,
+        questions: [],
+        error: `faltam questões gerais; disponíveis ${remainingCandidates.length}, necessárias ${missing}`
+      };
+    }
+
+    remainingCandidates.slice(0, missing).forEach((question) => addQuestion(selected, usedIds, question, totalTarget));
   }
 
-  return selected;
+  return selected.length >= totalTarget
+    ? { ok: true, questions: selected, error: '' }
+    : { ok: false, questions: [], error: `foram selecionadas ${selected.length} de ${totalTarget} questões` };
+}
+
+function buildInsufficientQuestionsMessage({ availableCount, baseQuestionCount, languageQuestionCount, totalQuestionCount, language, includeLanguageChoice, lastSelectionError }) {
+  if (availableCount === 0) {
+    return 'O banco ENEM do Supabase ainda está vazio. Execute o SQL da tabela e rode npm run import:enem para importar as questões.';
+  }
+
+  const languageHint = includeLanguageChoice
+    ? ` + ${languageQuestionCount} questão(ões) adicionais de ${getLanguageLabel(language)}`
+    : '';
+  const detail = lastSelectionError ? ` Detalhe: ${lastSelectionError}.` : '';
+
+  return `Não há questões suficientes no banco ENEM para montar esta atividade. O banco retornou ${availableCount} questão(ões), mas a prova precisa de ${baseQuestionCount} questão(ões) da distribuição${languageHint}, totalizando ${totalQuestionCount}.${detail}`;
 }
 
 function numberQuestions(questions, count) {
@@ -217,30 +285,44 @@ function addQuestion(selected, usedIds, question, limit) {
   usedIds.add(question.id);
 }
 
-function normalizeAreaDistribution(distribution = {}, limit = 90) {
-  const normalized = {};
-  let total = 0;
+function normalizeAreaDistributionForSlots(distribution = {}, slotCount = 0) {
+  const totalSlots = Math.max(0, Math.trunc(Number(slotCount || 0)));
+  const raw = {};
+  let rawTotal = 0;
 
   ENEM_AREA_OPTIONS.forEach((area) => {
     const value = Math.max(0, Math.trunc(Number(distribution?.[area.value] || 0)));
-    const available = Math.max(0, limit - total);
-    normalized[area.value] = Math.min(value, available);
-    total += normalized[area.value];
+    raw[area.value] = value;
+    rawTotal += value;
   });
 
-  return normalized;
+  if (!rawTotal || !totalSlots) return {};
+  if (rawTotal <= totalSlots) return raw;
+
+  const scaled = {};
+  const remainders = [];
+  let allocated = 0;
+
+  ENEM_AREA_OPTIONS.forEach((area) => {
+    const exact = (raw[area.value] / rawTotal) * totalSlots;
+    const base = Math.floor(exact);
+    scaled[area.value] = base;
+    allocated += base;
+    remainders.push({ area: area.value, remainder: exact - base });
+  });
+
+  remainders
+    .sort((left, right) => right.remainder - left.remainder)
+    .slice(0, Math.max(0, totalSlots - allocated))
+    .forEach((item) => {
+      scaled[item.area] += 1;
+    });
+
+  return scaled;
 }
 
 function hasAreaDistribution(distribution = {}) {
   return Object.values(distribution || {}).some((value) => Number(value) > 0);
-}
-
-function countSelectedQuestionsByArea(questions = []) {
-  return questions.reduce((accumulator, question) => {
-    const area = question.discipline || '';
-    if (area) accumulator[area] = (accumulator[area] || 0) + 1;
-    return accumulator;
-  }, {});
 }
 
 function isForeignLanguageQuestion(question) {
@@ -248,8 +330,25 @@ function isForeignLanguageQuestion(question) {
 }
 
 function normalizeStoredLanguage(value = '') {
-  if (value === 'ingles' || value === 'espanhol') return value;
+  const normalized = String(value || '').trim().toLowerCase();
+  if (normalized === 'ingles' || normalized === 'espanhol') return normalized;
   return '';
+}
+
+function normalizeDiscipline(value = '') {
+  const normalized = String(value || '').trim().toLowerCase();
+  const aliases = {
+    linguagens: 'linguagens',
+    'linguagens-codigos': 'linguagens',
+    'ciencias-humanas': 'ciencias-humanas',
+    humanas: 'ciencias-humanas',
+    'ciencias-natureza': 'ciencias-natureza',
+    natureza: 'ciencias-natureza',
+    matematica: 'matematica',
+    matemática: 'matematica'
+  };
+
+  return aliases[normalized] || normalized;
 }
 
 function normalizeAlternatives(alternatives = []) {
@@ -260,16 +359,33 @@ function normalizeAlternatives(alternatives = []) {
       const letter = String(alternative?.letter || alternative?.option || String.fromCharCode(65 + index)).trim().toUpperCase();
       return {
         letter,
-        text: alternative?.text || alternative?.body || '',
-        file: alternative?.file || alternative?.image || '',
+        text: alternative?.text || alternative?.body || alternative?.title || alternative?.content || '',
+        file: normalizeFile(alternative?.file || alternative?.image),
         isCorrect: Boolean(alternative?.isCorrect)
       };
     })
     .filter((alternative) => alternative.letter);
 }
 
+function normalizeCorrectAlternative(correctAlternative, alternatives) {
+  const normalized = String(correctAlternative || '').trim().toUpperCase();
+  if (normalized) return normalized;
+  return alternatives.find((alternative) => alternative.isCorrect)?.letter || '';
+}
+
+function normalizeFiles(files = []) {
+  if (!Array.isArray(files)) return [];
+  return files.map(normalizeFile).filter(Boolean);
+}
+
+function normalizeFile(file) {
+  if (!file) return '';
+  if (typeof file === 'string') return file;
+  return file.url || file.src || file.path || '';
+}
+
 function getAreaLabel(discipline = '') {
-  return ENEM_AREA_OPTIONS.find((area) => area.value === discipline)?.label || '';
+  return ENEM_AREA_OPTIONS.find((area) => area.value === normalizeDiscipline(discipline))?.label || '';
 }
 
 function clampNumber(value, min, max) {
