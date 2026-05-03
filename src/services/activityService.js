@@ -327,7 +327,6 @@ function normalizeClassActivity(data) {
   return {
     id: data.id || `activity-${Date.now()}`,
     title,
-    classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(data.questionCount) || APP_CONFIG.defaultExam.questionCount,
     sourceMode: data.sourceMode || 'enem-bank',
@@ -350,7 +349,6 @@ function normalizePersonalActivity(data) {
     id: data.id || `personal-${Date.now()}`,
     ownerEmail: data.ownerEmail,
     title: data.title?.trim() || fallback.title,
-    classCode: data.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(data.durationMinutes) || fallback.durationMinutes,
     questionCount: Number(data.questionCount) || fallback.questionCount,
     sourceMode: data.sourceMode || 'enem-bank',

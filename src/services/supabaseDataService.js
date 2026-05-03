@@ -164,7 +164,6 @@ function activityToRow(activity) {
   return {
     id: activity.id,
     title: activity.title,
-    class_code: activity.classCode || '',
     duration_minutes: Number(activity.durationMinutes || 0),
     question_count: Number(activity.questionCount || 0),
     source_mode: activity.sourceMode || 'enem-bank',
@@ -184,7 +183,6 @@ function activityFromRow(row) {
   return {
     id: row.id,
     title: row.title,
-    classCode: row.class_code,
     durationMinutes: Number(row.duration_minutes || 0),
     questionCount: Number(row.question_count || 0),
     sourceMode: row.source_mode || 'enem-bank',
@@ -262,7 +260,6 @@ function personalActivityToRow(activity) {
     id: activity.id,
     owner_email: normalizeEmail(activity.ownerEmail),
     title: activity.title,
-    class_code: activity.classCode || '',
     duration_minutes: Number(activity.durationMinutes || 0),
     question_count: Number(activity.questionCount || 0),
     source_mode: activity.sourceMode || 'enem-bank',
@@ -289,7 +286,6 @@ function personalActivityFromRow(row) {
     id: row.id,
     ownerEmail: row.owner_email,
     title: row.title,
-    classCode: row.class_code,
     durationMinutes: Number(row.duration_minutes || 0),
     questionCount: Number(row.question_count || 0),
     sourceMode: row.source_mode || 'enem-bank',

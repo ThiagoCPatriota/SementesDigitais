@@ -30,8 +30,7 @@ export const APP_CONFIG = {
   defaultExam: {
     title: 'Simulado Sementes Digitais 01',
     durationMinutes: 180,
-    questionCount: 60,
-    classCode: 'SEMENTES2026'
+    questionCount: 60
   },
   personalActivity: {
     title: 'Atividade Pessoal',

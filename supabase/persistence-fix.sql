@@ -42,7 +42,6 @@ grant execute on function public.get_current_sdu_role() to authenticated;
 create table if not exists public.class_activities (
   id text primary key,
   title text not null,
-  class_code text not null default '',
   duration_minutes integer not null default 180,
   question_count integer not null default 60,
   source_mode text not null default 'enem-bank',
@@ -88,7 +87,6 @@ create table if not exists public.personal_activities (
   id text primary key,
   owner_email text not null,
   title text not null,
-  class_code text not null default '',
   duration_minutes integer not null default 60,
   question_count integer not null default 20,
   source_mode text not null default 'enem-bank',

@@ -32,7 +32,6 @@ export function getExamConfig() {
 export function saveExamConfig(config) {
   const normalized = {
     title: config.title?.trim() || APP_CONFIG.defaultExam.title,
-    classCode: config.classCode?.trim() || APP_CONFIG.defaultExam.classCode,
     durationMinutes: Number(config.durationMinutes) || APP_CONFIG.defaultExam.durationMinutes,
     questionCount: Number(config.questionCount) || APP_CONFIG.defaultExam.questionCount,
     sourceMode: config.sourceMode || 'enem-bank',
